@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/* Identidad Pesito: paleta oficial + tonos derivados para texto secundario y bordes. */
+@theme {
+  --color-lima: #c5f277;
+  --color-lima-suave: #e9f9cf;
+  --color-bosque: #19271f;
+  --color-crema: #f5f7ef;
+  --color-verde: #5c8c3b;
+  --color-verde-oscuro: #456b2b;
+  --color-tinta: #19271f;
+  --color-tinta-2: #4b5a50;
+  --color-tenue: #6b7a70;
+  --color-linea: #e1e7d8;
+  --color-superficie: #ffffff;
+  --color-alerta: #b4541a;
+  --color-alerta-suave: #fdeedd;
+  --color-peligro: #b42318;
+  --color-peligro-suave: #fde8e6;
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-tarjeta: 22px;
+  --radius-control: 14px;
+
+  --shadow-tarjeta: 0 1px 0 rgb(25 39 31 / 0.04), 0 6px 18px -10px rgb(25 39 31 / 0.18);
+}
+
+@layer base {
+  html {
+    /* Que el foco y los saltos no queden tapados por la barra inferior fija. */
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom) + 112px);
+    scroll-padding-top: 72px;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-crema text-tinta antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-verde);
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* evita el zoom automático en iOS */
+  }
+}
+
+@utility tarjeta {
+  @apply rounded-[var(--radius-tarjeta)] bg-superficie shadow-[var(--shadow-tarjeta)];
+}
+@utility campo {
+  @apply w-full rounded-[var(--radius-control)] border border-linea bg-superficie px-3.5 py-3 text-[16px] text-tinta outline-none transition-colors placeholder:text-tenue focus:border-verde focus:ring-4 focus:ring-lima/50;
+}
+@utility etiqueta {
+  @apply mb-1.5 block text-sm font-semibold text-tinta-2;
+}
+@utility btn {
+  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primario {
+  @apply btn bg-bosque text-white hover:bg-[#24372c];
+}
+@utility btn-lima {
+  @apply btn bg-lima text-bosque hover:bg-[#b8ea63];
+}
+@utility btn-secundario {
+  @apply btn border border-linea bg-superficie text-tinta hover:bg-crema;
+}
+@utility btn-chico {
+  @apply min-h-9 px-3.5 text-sm;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+@utility numero {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

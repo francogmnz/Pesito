@@ -1,0 +1,150 @@
+import Link from "next/link";
+import { Logo, Mascot } from "@/components/brand";
+import { Icon } from "@/components/icon";
+import { CouponCard, PromoCard } from "@/components/promo-cards";
+import { SectionTitle } from "@/components/ui";
+import { getCurrentUser, getRepo } from "@/lib/data";
+import { daysUntilBirthday } from "@/lib/domain/birthday";
+import { availability } from "@/lib/domain/calc";
+import { byExpiry, isExpired } from "@/lib/domain/coupons";
+import { todayAR } from "@/lib/domain/dates";
+
+const HOME_CATEGORIES = [
+  { slug: "", name: "Todas", icon: "bag" },
+  { slug: "supermercados", name: "Súper", icon: "cart" },
+  { slug: "gastronomia", name: "Gastronomía", icon: "fork" },
+  { slug: "farmacias", name: "Farmacias", icon: "pill" },
+  { slug: "combustible", name: "Combustible", icon: "fuel" },
+  { slug: "delivery", name: "Delivery", icon: "bike" },
+];
+
+export default async function HomePage() {
+  const [repo, user] = await Promise.all([getRepo(), getCurrentUser()]);
+  const today = todayAR();
+  const [promos, coupons, states] = await Promise.all([
+    repo.listPromotions({ kinds: ["reintegro", "descuento"] }),
+    repo.listPromotions({ kinds: ["cupon"] }),
+    user ? repo.getUserStates(user.id) : Promise.resolve(new Map()),
+  ]);
+
+  const mine = new Set(user?.paymentMethodIds ?? []);
+  const featured = promos
+    .filter((p) => availability(p, today).state !== "vencida")
+    .sort((a, b) => {
+      const am = a.paymentMethods.some((pm) => mine.has(pm.id)) ? 1 : 0;
+      const bm = b.paymentMethods.some((pm) => mine.has(pm.id)) ? 1 : 0;
+      if (am !== bm) return bm - am;
+      const aa = availability(a, today).state === "activa" ? 1 : 0;
+      const ba = availability(b, today).state === "activa" ? 1 : 0;
+      if (aa !== ba) return ba - aa;
+      return (b.discountValue ?? 0) - (a.discountValue ?? 0);
+    })
+    .slice(0, 4);
+  const couponList = coupons.filter((c) => !isExpired(c, today) && !states.get(c.id)?.usedAt).sort(byExpiry).slice(0, 3);
+  const bdayIn = user?.birthdayDay && user.birthdayMonth ? daysUntilBirthday(user.birthdayDay, user.birthdayMonth, today) : null;
+
+  return (
+    <div className="pt-[calc(env(safe-area-inset-top)+10px)]">
+      <header className="flex items-center justify-between py-2">
+        <Logo size="sm" />
+        {user ? (
+          <Link href="/perfil" className="grid size-10 place-items-center rounded-full bg-lima font-bold" aria-label="Mi perfil">
+            {user.name.slice(0, 1).toUpperCase()}
+          </Link>
+        ) : (
+          <Link href="/ingresar" className="btn-secundario btn-chico">
+            Ingresar
+          </Link>
+        )}
+      </header>
+
+      <form action="/promos" role="search" className="relative mt-3">
+        <Icon name="search" size={20} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-tenue" />
+        <label htmlFor="q" className="sr-only">
+          Buscar promos
+        </label>
+        <input id="q" name="q" type="search" placeholder="Buscá por comercio, banco o categoría" className="campo rounded-full py-3.5 pl-11" />
+      </form>
+
+      <nav aria-label="Categorías" className="-mx-4 mt-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        {HOME_CATEGORIES.map((c) => (
+          <Link key={c.slug} href={c.slug ? `/promos?categoria=${c.slug}` : "/promos"} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 text-center">
+            <span className={`grid size-14 place-items-center rounded-2xl ${c.slug ? "bg-superficie text-verde-oscuro shadow-[var(--shadow-tarjeta)]" : "bg-lima text-bosque"}`}>
+              <Icon name={c.icon} size={24} />
+            </span>
+            <span className="text-[11.5px] font-semibold text-tinta-2">{c.name}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {user && user.paymentMethodIds.length === 0 && (
+        <Link href="/bienvenida" className="tarjeta mt-4 flex items-center gap-3 p-4">
+          <span className="grid size-11 place-items-center rounded-full bg-lima-suave text-verde-oscuro">
+            <Icon name="wallet" />
+          </span>
+          <span className="flex-1 text-sm">
+            <b className="block text-[15px]">Elegí tus bancos y billeteras</b>
+            Así te mostramos primero las promos que podés usar.
+          </span>
+          <Icon name="chevronRight" className="text-tenue" />
+        </Link>
+      )}
+
+      <section className="relative mt-5 overflow-hidden rounded-[26px] bg-lima p-5 pr-32">
+        <h2 className="text-[22px] leading-tight font-black tracking-tight">Más promos para tu día a día.</h2>
+        <p className="mt-1 text-sm font-medium text-bosque/80">¿Viste una promo que no está? Mandala y la sumamos.</p>
+        <Link href="/sugerir" className="btn-primario btn-chico mt-3">
+          <Icon name="plus" size={18} strokeWidth={2.4} /> Sugerí una promo
+        </Link>
+        <Mascot pose="saludo" width={130} eager className="absolute -right-2 bottom-0" />
+      </section>
+
+      <section className="mt-7">
+        <SectionTitle title={mine.size ? "Para tus medios de pago" : "Promos destacadas"} href="/promos" />
+        {featured.length ? (
+          <div className="grid grid-cols-2 gap-3">
+            {featured.map((p) => (
+              <PromoCard key={p.id} promo={p} today={today} saved={!!states.get(p.id)?.savedAt} />
+            ))}
+          </div>
+        ) : (
+          <p className="tarjeta p-4 text-sm text-tinta-2">Todavía no hay promos publicadas.</p>
+        )}
+      </section>
+
+      <section className="mt-7">
+        <SectionTitle title="Cupones para vos" href="/cupones" linkLabel="Ver todos" />
+        <div className="grid gap-3">
+          {couponList.map((c) => (
+            <CouponCard key={c.id} promo={c} today={today} saved={!!states.get(c.id)?.savedAt} />
+          ))}
+          {couponList.length === 0 && <p className="tarjeta p-4 text-sm text-tinta-2">No hay cupones vigentes por ahora.</p>}
+        </div>
+      </section>
+
+      <Link href="/cumple" className="tarjeta mt-7 flex items-center gap-4 overflow-hidden p-4">
+        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-bosque text-lima">
+          <Icon name="cake" size={28} />
+        </span>
+        <span className="flex-1">
+          <b className="block text-[16px]">Tu cumple con Pesito 🎂</b>
+          <span className="text-sm text-tinta-2">
+            {bdayIn === 0 ? "¡Hoy es tu cumpleaños! Mirá tus beneficios." : bdayIn != null ? `Faltan ${bdayIn} días. Mirá qué te regalan.` : "Regalos y descuentos para tu cumpleaños."}
+          </span>
+        </span>
+        <Icon name="chevronRight" className="text-tenue" />
+      </Link>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <Link href="/calculadora" className="tarjeta flex flex-col gap-2 p-4">
+          <Icon name="calculator" className="text-verde" />
+          <b className="text-[15px] leading-tight">Calculadora de reintegro</b>
+        </Link>
+        <Link href="/comparador" className="tarjeta flex flex-col gap-2 p-4">
+          <Icon name="compare" className="text-verde" />
+          <b className="text-[15px] leading-tight">Comparar medios de pago</b>
+        </Link>
+      </div>
+    </div>
+  );
+}
