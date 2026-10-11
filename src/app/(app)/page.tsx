@@ -18,6 +18,12 @@ const HOME_CATEGORIES = [
   { slug: "delivery", name: "Delivery", icon: "bike" },
 ];
 
+const TOOLS = [
+  { href: "/conviene", label: "¿Dónde conviene?", icon: "store" },
+  { href: "/calculadora", label: "Calculadora de reintegro", icon: "calculator" },
+  { href: "/comparador", label: "Comparar medios de pago", icon: "compare" },
+] as const;
+
 export default async function HomePage() {
   const [repo, user] = await Promise.all([getRepo(), getCurrentUser()]);
   const today = todayAR();
@@ -66,6 +72,17 @@ export default async function HomePage() {
         <input id="q" name="q" type="search" placeholder="Buscá por comercio, banco o categoría" className="campo rounded-full py-3.5 pl-11" />
       </form>
 
+      <nav aria-label="Herramientas" className="mt-4 grid grid-cols-3 gap-2.5">
+        {TOOLS.map((t) => (
+          <Link key={t.href} href={t.href} className="tarjeta flex flex-col items-center gap-1.5 px-2 py-3 text-center">
+            <span className="grid size-10 place-items-center rounded-full bg-lima-suave text-verde-oscuro">
+              <Icon name={t.icon} size={20} />
+            </span>
+            <b className="text-[12.5px] leading-tight">{t.label}</b>
+          </Link>
+        ))}
+      </nav>
+
       <nav aria-label="Categorías" className="-mx-4 mt-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {HOME_CATEGORIES.map((c) => (
           <Link key={c.slug} href={c.slug ? `/promos?categoria=${c.slug}` : "/promos"} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 text-center">
@@ -90,16 +107,17 @@ export default async function HomePage() {
         </Link>
       )}
 
-      <section className="relative mt-5 overflow-hidden rounded-[26px] bg-lima p-5 pr-32">
-        <h2 className="text-[22px] leading-tight font-black tracking-tight">Más promos para tu día a día.</h2>
-        <p className="mt-1 text-sm font-medium text-bosque/80">¿Viste una promo que no está? Mandala y la sumamos.</p>
-        <Link href="/sugerir" className="btn-primario btn-chico mt-3">
-          <Icon name="plus" size={18} strokeWidth={2.4} /> Sugerí una promo
-        </Link>
-        <Mascot pose="saludo" width={130} eager className="absolute -right-2 bottom-0" />
+      <section className="relative mt-4 flex items-center gap-3 overflow-hidden rounded-2xl bg-lima py-3 pr-24 pl-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] leading-tight font-bold">¿Viste una promo que no está?</h2>
+          <Link href="/sugerir" className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-bosque underline underline-offset-2">
+            <Icon name="plus" size={16} strokeWidth={2.4} /> Sugerila y la sumamos
+          </Link>
+        </div>
+        <Mascot pose="saludo" width={76} eager className="absolute -right-1 bottom-0" />
       </section>
 
-      <section className="mt-7">
+      <section className="mt-5">
         <SectionTitle title={mine.size ? "Para tus medios de pago" : "Promos destacadas"} href="/promos" />
         {featured.length ? (
           <div className="grid grid-cols-2 gap-3">
@@ -135,24 +153,6 @@ export default async function HomePage() {
         <Icon name="chevronRight" className="text-tenue" />
       </Link>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/calculadora" className="tarjeta flex flex-col gap-2 p-4">
-          <Icon name="calculator" className="text-verde" />
-          <b className="text-[15px] leading-tight">Calculadora de reintegro</b>
-        </Link>
-        <Link href="/comparador" className="tarjeta flex flex-col gap-2 p-4">
-          <Icon name="compare" className="text-verde" />
-          <b className="text-[15px] leading-tight">Comparar medios de pago</b>
-        </Link>
-        <Link href="/conviene" className="tarjeta col-span-2 flex items-center gap-3 p-4">
-          <Icon name="store" className="text-verde" />
-          <span className="flex-1">
-            <b className="block text-[15px] leading-tight">¿Dónde conviene?</b>
-            <span className="text-sm text-tinta-2">El mismo producto. El mejor precio.</span>
-          </span>
-          <Icon name="chevronRight" className="text-tenue" />
-        </Link>
-      </div>
     </div>
   );
 }
