@@ -3,11 +3,12 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryRepo, resetDemoStore } from "@/lib/data/memory";
 import type { Source } from "@/lib/domain/types";
-import { ADAPTERS } from "./adapters";
+import { ADAPTERS, CRAWLERS } from "./adapters";
 import { robotsDisallows } from "./fetch-page";
 import { findCouponCode, parseDateRange, parseDays, parseSpanishDate } from "./html";
 import { processCandidates } from "./process";
 import { parseMercadoPago } from "./sites/mercadopago";
+import { modoBanks, modoPriority, parseModoPromo, parseModoSitemap } from "./sites/modo";
 import { parsePedidosYa } from "./sites/pedidosya";
 import { parseUala } from "./sites/uala";
 
@@ -84,6 +85,149 @@ describe("Mercado Pago", () => {
     const aero = list.find((c) => c.merchantName === "Aerolíneas Argentinas")!;
     expect(aero).toMatchObject({ discountValue: 20, capAmount: 30000, validUntil: "2026-05-17", kind: "reintegro" });
     expect(list.every((c) => /^mp:[a-z0-9-]+:/.test(c.externalId))).toBe(true);
+  });
+});
+
+describe("MODO", () => {
+  const page = (n: string, today = TODAY) => parseModoPromo(fixture(`modo-${n}`), today);
+
+  it("lee una promo bancaria con tope, días, tarjetas y vigencia real", () => {
+    const r = page("banco");
+    expect(r.state).toBe("vigente");
+    expect(r.candidate).toMatchObject({
+      externalId: "modo:23df25eb-0985-4238-a99a-45a4979d7f1b",
+      kind: "reintegro",
+      merchantName: "La Coope en Casa",
+      title: "30% en La Coope en Casa con Credicoop",
+      discountValue: 30,
+      capAmount: 15000,
+      capPeriod: "dia",
+      minPurchase: null,
+      validFrom: "2025-10-01",
+      validUntil: "2026-12-31",
+      daysOfWeek: [5],
+      channel: "online",
+      bank: "Credicoop",
+      paymentMethodSlugs: ["credicoop"],
+      sourceUrl: "https://www.modo.com.ar/promos/30-lacoopeencasa-credicoop-oct25",
+    });
+    expect(r.candidate!.conditions).toContain("Tarjetas: crédito Cabal; débito Cabal.");
+    expect(r.candidate!.conditions).toContain("Promoción válida únicamente para consumos con QR de MODO");
+    // Los legales y el dato estructurado no coinciden: lo tiene que mirar una persona.
+    expect(r.candidate!.flags).toContain("Los legales dicen hasta el 30/09/26 y el dato de vigencia, 2026-12-31");
+  });
+
+  it("una promo del comercio se carga con MODO y avisa que no hay banco puntual", () => {
+    const c = page("comercio").candidate!;
+    expect(c).toMatchObject({ merchantName: "FarmaPlus", discountValue: 15, capAmount: 9000, capPeriod: "semana", minPurchase: 60000, daysOfWeek: [1], channel: "online", categorySlug: "farmacias", paymentMethodSlugs: ["modo"], wallet: "MODO", bank: null });
+    expect(c.conditions).toContain("El tope es por persona en cada banco.");
+    expect(c.flags!.some((f) => f.startsWith("No se reconoció un banco puntual"))).toBe(true);
+  });
+
+  it("sin tope y con cuotas: queda sin tope y las cuotas van a las condiciones", () => {
+    const c = page("cuotas-sin-tope").candidate!;
+    expect(c).toMatchObject({ merchantName: "Frávega", discountValue: 10, capAmount: null, capPeriod: "sin_tope", paymentMethodSlugs: ["banco-corrientes"], daysOfWeek: [5] });
+    expect(c.conditions).toContain("Hasta 6 cuotas sin interés.");
+    expect(c.conditions).toContain("Tarjetas: crédito Visa.");
+  });
+
+  it("avisa cuando parece ser para un segmento de clientes", () => {
+    const c = page("segmento").candidate!;
+    expect(c).toMatchObject({ paymentMethodSlugs: ["macro"], daysOfWeek: null, channel: "local", capAmount: 20000, capPeriod: "mes" });
+    expect(c.flags!.some((f) => f.includes("segmento"))).toBe(true);
+  });
+
+  it("que MODO diga “active” no alcanza: manda la vigencia", () => {
+    expect(page("vencida")).toMatchObject({ state: "vencida", validUntil: "2023-07-14", candidate: null });
+    expect(page("banco", "2027-01-15")).toMatchObject({ state: "vencida", candidate: null });
+  });
+
+  it("saltea las promos de solo cuotas y las páginas sin datos", () => {
+    expect(page("solo-cuotas")).toMatchObject({ state: "omitida", reason: "Solo cuotas", candidate: null });
+    expect(parseModoPromo("<html><title>Promociones</title></html>", TODAY).state).toBe("sin_datos");
+  });
+
+  it("reconoce el banco donde MODO lo pone, sin confundirlo con un comercio", () => {
+    const slugs = (p: Parameters<typeof modoBanks>[0]) => modoBanks(p).map((b) => b.slug);
+    expect(slugs({ short_description: "2505-BNA-voucher-7304530-carrefour" })).toEqual(["banco-nacion"]);
+    expect(slugs({ slug: "30off-cerveceria-patagonia-macro-jun26" })).toEqual(["macro"]);
+    expect(slugs({ slug: "15-farmaonline-icbc-jul24", short_description: "Promo ICBC" })).toEqual(["icbc"]);
+    expect(slugs({ slug: "autoshop-agos26", short_description: "2608-AutoShop-Presencial-15off" })).toEqual([]);
+  });
+
+  it("ordena la lectura: primero lo reciente, al final lo viejo", () => {
+    expect(parseModoSitemap("<urlset><url><loc>https://www.modo.com.ar/promos</loc></url><url><loc>https://www.modo.com.ar/promos/farmaplus-oct26</loc></url><url><loc>https://www.modo.com.ar/ayuda/x</loc></url></urlset>")).toEqual(["farmaplus-oct26"]);
+    const order = ["20-bsf-semana-jul23", "25off-santander-dining", "2609-galicia-recital-6csi", "farmaplus-oct26"].sort((a, b) => modoPriority(b, TODAY) - modoPriority(a, TODAY));
+    expect(order).toEqual(["farmaplus-oct26", "2609-galicia-recital-6csi", "25off-santander-dining", "20-bsf-semana-jul23"]);
+  });
+});
+
+describe("MODO por tandas", () => {
+  beforeEach(() => resetDemoStore());
+  const PAGES: Record<string, string> = { "farmaplus-oct26": "comercio", "30-lacoopeencasa-credicoop-oct25": "banco", "20-bsf-semana-jul23": "vencida" };
+  const sitemap = `<urlset>${[...Object.keys(PAGES), "ya-no-existe-oct26"].map((s) => `<url><loc>https://www.modo.com.ar/promos/${s}</loc></url>`).join("")}</urlset>`;
+  const source = (config: Record<string, unknown> = {}): Source => ({ id: "src-modo", name: "MODO", url: "https://www.modo.com.ar/promos", kind: "oficial", active: true, adapter: "modo", config: { delayMs: 0, ...config }, autoPublish: false, lastRunAt: null });
+  const site = (robots = "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /data/\n") => {
+    const calls: string[] = [];
+    const fetcher = (async (u: string) => {
+      const url = String(u);
+      calls.push(url.replace("https://www.modo.com.ar", ""));
+      if (url.endsWith("/robots.txt")) return new Response(robots);
+      if (url.endsWith("/sitemap.xml")) return new Response(sitemap);
+      const name = PAGES[url.split("/promos/")[1]];
+      return name ? new Response(fixture(`modo-${name}`)) : new Response("no", { status: 404 });
+    }) as unknown as typeof fetch;
+    return { calls, fetcher };
+  };
+  const now = new Date("2026-10-11T13:00:00Z");
+
+  it("lee el sitemap, abre cada página una vez y manda lo vigente a revisión", async () => {
+    const repo = createMemoryRepo();
+    const { calls, fetcher } = site();
+    const r = await CRAWLERS.modo.crawl({ repo, source: source(), fetcher, today: TODAY, now });
+    expect(r).toMatchObject({ checked: 4, skipped: 2, errors: 0, removedExternalIds: [] });
+    expect(r.candidates.map((c) => c.merchantName).sort()).toEqual(["FarmaPlus", "La Coope en Casa"]);
+    expect(calls.filter((c) => c === "/robots.txt")).toHaveLength(1);
+    expect(calls.some((c) => c.startsWith("/api/"))).toBe(false);
+    expect(await repo.sourceRecordStats("src-modo")).toEqual({ vigente: 2, vencida: 1, sin_datos: 1 });
+
+    const p = await processCandidates(repo, source(), r.candidates, { today: TODAY, partial: true });
+    expect(p).toMatchObject({ created: 0, flagged: 2 });
+    const queued = await repo.listSubmissions({ origin: "automatizacion", status: "pendiente" });
+    expect(queued.find((s) => s.payload.merchantName === "FarmaPlus")!.flagReasons.some((f) => f.startsWith("No se reconoció un banco"))).toBe(true);
+  });
+
+  it("no relee lo vencido ni baja el sitemap de nuevo; lo vigente se revisa a la semana sin duplicar la cola", async () => {
+    const repo = createMemoryRepo();
+    const first = site();
+    const r1 = await CRAWLERS.modo.crawl({ repo, source: source(), fetcher: first.fetcher, today: TODAY, now });
+    await processCandidates(repo, source(), r1.candidates, { today: TODAY, partial: true });
+
+    const synced = source({ sitemapSyncedAt: now.toISOString() });
+    const sameDay = site();
+    expect((await CRAWLERS.modo.crawl({ repo, source: synced, fetcher: sameDay.fetcher, today: TODAY, now })).checked).toBe(0);
+    expect(sameDay.calls).toEqual([]);
+
+    const later = site();
+    const r2 = await CRAWLERS.modo.crawl({ repo, source: synced, fetcher: later.fetcher, today: "2026-10-19", now: new Date("2026-10-19T13:00:00Z") });
+    expect(later.calls.filter((c) => c.startsWith("/promos/")).sort()).toEqual(["/promos/30-lacoopeencasa-credicoop-oct25", "/promos/farmaplus-oct26"]);
+    const p = await processCandidates(repo, synced, r2.candidates, { today: "2026-10-19", partial: true });
+    expect(p.flagged).toBe(0);
+  });
+
+  it("respeta el tamaño de la tanda y empieza por lo más reciente", async () => {
+    const repo = createMemoryRepo();
+    const { calls, fetcher } = site();
+    const r = await CRAWLERS.modo.crawl({ repo, source: source({ batchSize: 2 }), fetcher, today: TODAY, now });
+    expect(r.checked).toBe(2);
+    expect(calls.filter((c) => c.startsWith("/promos/")).sort()).toEqual(["/promos/farmaplus-oct26", "/promos/ya-no-existe-oct26"]);
+    expect((await repo.sourceRecordStats("src-modo")).nueva).toBe(2);
+  });
+
+  it("si robots.txt lo prohíbe, no lee nada", async () => {
+    const { calls, fetcher } = site("User-agent: *\nDisallow: /\n");
+    await expect(CRAWLERS.modo.crawl({ repo: createMemoryRepo(), source: source(), fetcher, today: TODAY, now })).rejects.toThrow("robots.txt");
+    expect(calls).toEqual(["/robots.txt"]);
   });
 });
 

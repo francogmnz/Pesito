@@ -84,12 +84,19 @@ function isMinorChange(diff: NonNullable<Submission["diff"]>): boolean {
  * desaparecidos del feed → se manda a revisión una posible baja.
  * vencidos → se ignoran.
  */
-export async function processCandidates(repo: Repo, source: Source, candidates: RawCandidate[], opts: { today: string }): Promise<IngestResult> {
+export interface ProcessOptions {
+  today: string;
+  /** La corrida trae solo una parte de la fuente: que algo no venga no significa que se dio de baja. */
+  partial?: boolean;
+  /** Bajas confirmadas por el lector (la página de la promo dejó de existir). */
+  removedExternalIds?: string[];
+}
+
+export async function processCandidates(repo: Repo, source: Source, candidates: RawCandidate[], opts: ProcessOptions): Promise<IngestResult> {
   const r: IngestResult = { found: candidates.length, created: 0, updated: 0, verified: 0, flagged: 0, skippedExpired: 0 };
   const active = await repo.listPromotions({ statuses: ["publicada", "en_revision", "borrador"], limit: 1000 });
   // No volver a encolar lo que ya está en la cola ni lo que el equipo ya rechazó.
-  const known = await repo.listSubmissions({ origin: "automatizacion" });
-  const pendingFps = new Set(known.filter((s) => s.status !== "aprobada" || !s.publishedPromotionId).map((s) => s.fingerprint));
+  const pendingFps = new Set<string | null>(await repo.listQueuedFingerprints());
   const seenExternal = new Set<string>();
   const trusted = source.kind === "oficial" && source.autoPublish;
 
@@ -124,7 +131,7 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       continue;
     }
 
-    const flags = publishProblems(payload);
+    const flags = [...publishProblems(payload), ...(c.flags ?? [])];
     if (source.kind !== "oficial") flags.push("La fuente no es oficial: verificar");
     const dups = findDuplicates({ ...payload, fingerprint: fp }, active);
     if (dups.length) flags.push(`Posible duplicado de “${dups[0].promotion.title}”`);
@@ -142,13 +149,19 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
     }
   }
 
+  const queueRemoval = (p: Promotion) =>
+    queue(toPayload({ ...promotionToRaw(p) }, source), `${p.fingerprint}_baja`, { flagReasons: ["Ya no aparece en la fuente"], changeType: "baja", matchedPromotionId: p.id });
+
   // Bajas: solo si el feed trajo datos (un feed vacío suele ser un error de la fuente).
-  if (candidates.length > 0) {
+  if (candidates.length > 0 && !opts.partial) {
     for (const p of active) {
       if (p.status !== "publicada" || !p.externalId || p.sourceName !== source.name || seenExternal.has(p.externalId)) continue;
-      const payload = toPayload({ ...promotionToRaw(p) }, source);
-      await queue(payload, `${p.fingerprint}_baja`, { flagReasons: ["Ya no aparece en la fuente"], changeType: "baja", matchedPromotionId: p.id });
+      await queueRemoval(p);
     }
+  }
+  for (const externalId of opts.removedExternalIds ?? []) {
+    const p = await repo.findPromotionByExternalId(source.id, externalId);
+    if (p?.status === "publicada") await queueRemoval(p);
   }
   return r;
 }

@@ -1,13 +1,28 @@
 import { getRepo } from "@/lib/data";
+import type { SourceRecordState } from "@/lib/domain/types";
+import { CRAWLERS } from "@/lib/ingest/adapters";
 import { RunNowButton } from "./run-now";
 
 export const metadata = { title: "Automatización" };
+// "Actualizar ahora" lee una tanda completa de las fuentes por tandas: necesita el mismo margen que el cron.
+export const maxDuration = 300;
 
 const KIND = { oficial: "Oficial", autorizada: "Autorizada", comunidad: "Comunidad" } as const;
+
+function progressLabel(st: Partial<Record<SourceRecordState, number>>): string {
+  const n = (k: SourceRecordState) => (st[k] ?? 0).toLocaleString("es-AR");
+  const total = Object.values(st).reduce((a, b) => a + (b ?? 0), 0);
+  if (!total) return "Se lee por tandas: todavía no empezó.";
+  return `Por tandas: faltan leer ${n("nueva")} páginas · ${n("vigente")} vigentes · ${n("vencida")} vencidas · ${n("omitida")} solo cuotas u otras${st.error ? ` · ${n("error")} con error` : ""}`;
+}
 
 export default async function AutomationPage() {
   const repo = await getRepo();
   const [sources, runs] = await Promise.all([repo.listSources(), repo.listIngestionRuns(15)]);
+  // Fuentes que se leen por tandas: cuántas páginas faltan y cuántas promos vigentes se encontraron.
+  const progress = new Map(
+    await Promise.all(sources.filter((s) => s.adapter && CRAWLERS[s.adapter]).map(async (s) => [s.id, await repo.sourceRecordStats(s.id)] as const)),
+  );
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -39,6 +54,7 @@ export default async function AutomationPage() {
                 <td className="py-2 pr-2">
                   <b>{s.name}</b>
                   <span className="block text-xs break-all text-tinta-2">{s.url}</span>
+                  {progress.has(s.id) && <span className="block text-xs font-semibold text-verde-oscuro">{progressLabel(progress.get(s.id)!)}</span>}
                 </td>
                 <td className="py-2 pr-2">{KIND[s.kind]}</td>
                 <td className="py-2 pr-2">{s.active ? "Activa" : "Pausada"}</td>

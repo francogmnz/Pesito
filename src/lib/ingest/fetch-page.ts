@@ -34,25 +34,40 @@ export function robotsDisallows(robotsTxt: string, path: string): boolean {
   return best ? !best.allow : false;
 }
 
+export interface FetchPageOptions {
+  maxBytes?: number;
+  accept?: string;
+  /** Para leer muchas páginas del mismo sitio: el robots.txt se pide una sola vez por corrida. */
+  robotsCache?: Map<string, string | null>;
+}
+
 /**
  * Descarga una página pública respetando su robots.txt, con límite de tamaño y tiempo.
  * Si robots.txt no se puede leer, se asume permitido (es lo que indica el estándar para 4xx).
  */
-export async function fetchPage(url: string, fetcher: typeof fetch = fetch): Promise<string> {
+export async function fetchPage(url: string, fetcher: typeof fetch = fetch, o: FetchPageOptions = {}): Promise<string> {
   if (!isSafePublicUrl(url)) throw new Error(`URL no permitida: ${url}`);
   const u = new URL(url);
-  const opts = { headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml", "accept-language": "es-AR,es;q=0.9" }, signal: AbortSignal.timeout(20_000) };
-  try {
-    const robots = await fetcher(`${u.origin}/robots.txt`, opts);
-    if (robots.ok && robotsDisallows(await robots.text(), u.pathname + u.search)) {
-      throw new Error(`El robots.txt de ${u.host} no permite leer ${u.pathname}`);
+  const opts = () => ({
+    headers: { "user-agent": USER_AGENT, accept: o.accept ?? "text/html,application/xhtml+xml", "accept-language": "es-AR,es;q=0.9" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  let robotsTxt = o.robotsCache?.get(u.origin);
+  if (robotsTxt === undefined) {
+    try {
+      const robots = await fetcher(`${u.origin}/robots.txt`, opts());
+      robotsTxt = robots.ok ? await robots.text() : null;
+    } catch {
+      robotsTxt = null;
     }
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith("El robots.txt")) throw e;
+    o.robotsCache?.set(u.origin, robotsTxt);
   }
-  const res = await fetcher(url, opts);
+  if (robotsTxt && robotsDisallows(robotsTxt, u.pathname + u.search)) {
+    throw new Error(`El robots.txt de ${u.host} no permite leer ${u.pathname}`);
+  }
+  const res = await fetcher(url, opts());
   if (!res.ok) throw new Error(`${u.host} respondió ${res.status}`);
   const text = await res.text();
-  if (text.length > MAX_BYTES) throw new Error(`La página de ${u.host} es demasiado grande`);
+  if (text.length > (o.maxBytes ?? MAX_BYTES)) throw new Error(`La página de ${u.host} es demasiado grande`);
   return text;
 }

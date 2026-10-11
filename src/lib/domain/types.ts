@@ -207,6 +207,18 @@ export interface Source {
   lastRunAt: string | null;
 }
 
+export type SourceRecordState = "nueva" | "vigente" | "vencida" | "omitida" | "sin_datos" | "error";
+
+/**
+ * Una página de una fuente que se lee por tandas (por ejemplo, cada promo de MODO).
+ * Guarda qué pasó la última vez para no volver a leer lo que ya venció.
+ */
+export interface SourceRecord {
+  key: string;
+  state: SourceRecordState;
+  externalId: string | null;
+}
+
 export interface IngestionRun {
   id: string;
   sourceId: string | null;

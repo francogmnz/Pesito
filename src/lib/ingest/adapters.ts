@@ -1,17 +1,41 @@
+import type { Repo } from "@/lib/data/repo";
 import { isValidISODate, todayAR } from "@/lib/domain/dates";
 import type { PromoPayload, Source } from "@/lib/domain/types";
 import { isSafePublicUrl } from "@/lib/domain/validation";
 import { fetchPage } from "./fetch-page";
 import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
+import { modoCrawler } from "./sites/modo";
 import { parsePedidosYa, PEDIDOSYA_URL } from "./sites/pedidosya";
 import { parseUala, UALA_URL } from "./sites/uala";
 
-/** Candidato tal como sale de una fuente: parcial, con un identificador estable en esa fuente. */
-export type RawCandidate = Partial<PromoPayload> & { externalId: string };
+/**
+ * Candidato tal como sale de una fuente: parcial, con un identificador estable en esa fuente.
+ * `flags` son dudas que detectó el lector: se muestran como motivos de revisión.
+ */
+export type RawCandidate = Partial<PromoPayload> & { externalId: string; flags?: string[] };
 
 export interface Adapter {
   readonly name: string;
   fetchCandidates(source: Source, fetcher?: typeof fetch): Promise<RawCandidate[]>;
+}
+
+export interface CrawlResult {
+  candidates: RawCandidate[];
+  /** Promos que estaban vigentes y cuya página ya no existe. */
+  removedExternalIds: string[];
+  checked: number;
+  /** Leídas pero no cargadas (vencidas, solo cuotas, sin datos). */
+  skipped: number;
+  errors: number;
+}
+
+/**
+ * Fuente con miles de páginas: se lee una tanda por corrida y guarda por dónde va
+ * (source_records). Como cada corrida ve solo una parte, no se infieren bajas por ausencia.
+ */
+export interface Crawler {
+  readonly name: string;
+  crawl(ctx: { repo: Repo; source: Source; fetcher?: typeof fetch; today: string; now?: Date }): Promise<CrawlResult>;
 }
 
 const MAX_FEED_BYTES = 2 * 1024 * 1024;
@@ -63,6 +87,7 @@ export function normalizeRaw(o: Record<string, unknown> & { externalId: string }
   const days = Array.isArray(o.daysOfWeek) ? o.daysOfWeek.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : null;
   return {
     externalId: o.externalId,
+    ...(Array.isArray(o.flags) && o.flags.length ? { flags: o.flags.map(String).slice(0, 10) } : {}),
     kind: (["reintegro", "descuento", "cupon", "cumple"].includes(o.kind as string) ? o.kind : undefined) as PromoPayload["kind"] | undefined,
     audience: (["todos", "nuevos_clientes", "cumpleanieros", "miembros"].includes(o.audience as string) ? o.audience : undefined) as PromoPayload["audience"] | undefined,
     merchantName: strOrNull(o.merchantName, 80) ?? undefined,
@@ -103,4 +128,8 @@ export const ADAPTERS: Record<string, Adapter> = {
   uala: pageAdapter("uala", UALA_URL, parseUala),
   pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
   mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
+};
+
+export const CRAWLERS: Record<string, Crawler> = {
+  [modoCrawler.name]: modoCrawler,
 };

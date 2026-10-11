@@ -14,6 +14,7 @@ import type {
   Merchant,
   Requirement,
   Source,
+  SourceRecordState,
   Submission,
 } from "@/lib/domain/types";
 import { friendlyDbError } from "./errors";
@@ -417,6 +418,48 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     async findPromotionByExternalId(sourceId, externalId) {
       const r = await must(db.from("promotions").select(PROMO_SELECT).eq("source_id", sourceId).eq("external_id", externalId).maybeSingle());
       return r ? toPromotion(r) : null;
+    },
+
+    async listQueuedFingerprints() {
+      const out: string[] = [];
+      // Supabase devuelve de a 1.000 filas: se recorre por páginas.
+      for (let from = 0; from < 50_000; from += 1000) {
+        const rows = await must(
+          db.from("promo_submissions").select("fingerprint, status, published_promotion_id").eq("origin", "automatizacion").not("fingerprint", "is", null).order("id").range(from, from + 999),
+        );
+        for (const r of rows as Row[]) if (r.status !== "aprobada" || !r.published_promotion_id) out.push(r.fingerprint);
+        if (rows.length < 1000) break;
+      }
+      return out;
+    },
+    async updateSourceConfig(sourceId, patch) {
+      const cur = await must(db.from("sources").select("config").eq("id", sourceId).single());
+      await must(db.from("sources").update({ config: { ...(cur.config ?? {}), ...patch } }).eq("id", sourceId));
+    },
+    async addSourceRecords(sourceId, items) {
+      for (let i = 0; i < items.length; i += 1000) {
+        const rows = items.slice(i, i + 1000).map((it) => ({ source_id: sourceId, key: it.key, priority: it.priority }));
+        const { error } = await db.from("source_records").upsert(rows, { onConflict: "source_id,key", ignoreDuplicates: true });
+        if (error) throw friendlyDbError(error);
+      }
+    },
+    async dueSourceRecords(sourceId, nowISO, limit) {
+      const rows = await must(
+        db.from("source_records").select("key, state, external_id").eq("source_id", sourceId).lte("next_check_at", nowISO).order("priority", { ascending: false }).order("next_check_at").limit(limit),
+      );
+      return rows.map((r: Row) => ({ key: r.key, state: r.state, externalId: r.external_id }));
+    },
+    async saveSourceRecord(sourceId, key, patch) {
+      const upd: Row = { state: patch.state, next_check_at: patch.nextCheckAt, last_checked_at: new Date().toISOString(), error: patch.error ?? null };
+      if (patch.externalId !== undefined) upd.external_id = patch.externalId;
+      if (patch.validUntil !== undefined) upd.valid_until = patch.validUntil;
+      const { error } = await db.from("source_records").update(upd).eq("source_id", sourceId).eq("key", key);
+      if (error) throw friendlyDbError(error);
+    },
+    async sourceRecordStats(sourceId) {
+      const states: SourceRecordState[] = ["nueva", "vigente", "vencida", "omitida", "sin_datos", "error"];
+      const counts = await Promise.all(states.map((st) => db.from("source_records").select("key", { count: "exact", head: true }).eq("source_id", sourceId).eq("state", st)));
+      return Object.fromEntries(states.map((st, i) => [st, counts[i].count ?? 0]));
     },
 
     async countRecentSubmissions(userId, ipHash, sinceISO) {

@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -51,6 +51,7 @@ supabase/
 | `promo_submissions` | Cola de revisión: sugerencias y detecciones automáticas. Estados: pendiente, en revisión, aprobada, rechazada. |
 | `moderation_events` | Historial de moderación. |
 | `sources`, `ingestion_runs` | Fuentes oficiales/autorizadas y corridas de la automatización. |
+| `source_records` | Páginas de las fuentes que se leen por tandas (MODO): estado, vigencia y próxima lectura. |
 
 ## Reglas de seguridad (en la base)
 
@@ -80,7 +81,7 @@ Barra inferior con 4 destinos y un botón central:
 
 `GET /api/cron/actualizar` con `Authorization: Bearer $CRON_SECRET` (o "Actualizar ahora" en el panel):
 
-- Lee cada fuente activa con su adaptador. Hoy existe `json-feed` para feeds autorizados; no se hace scraping.
+- Lee cada fuente activa con su adaptador: `json-feed` para feeds autorizados y lectores de páginas públicas que respetan el `robots.txt` de cada sitio.
 - **Nuevas**: se publican solas solo si la fuente es **oficial**, tiene `auto_publish` y el dato está completo y sin posibles duplicados. Si no, van a revisión con el motivo.
 - **Existentes sin cambios**: se marcan como verificadas.
 - **Cambios**: una extensión de vigencia en fuente oficial se aplica sola; cualquier otro cambio va a revisión con el antes y después.
@@ -96,13 +97,29 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 | Ualá · `uala.com.ar/promociones` | `uala` | JSON embebido de Next.js (`__NEXT_DATA__`): % , tope, días, vigencia, canal, legales y códigos de cupón |
 | PedidosYa · `pedidosya.com.ar/promotions-section/promotions` | `pedidosya` | JSON embebido: banco, %, reintegro o descuento, días. No trae tope ni vigencia |
 | Mercado Pago · `promociones.mercadopago.com.ar` | `mercadopago` | HTML de WordPress: solo promos con % (las de cuotas o 2x1 se ignoran por ahora) |
-| MODO | — | No se lee: las promos salen de `/api/` y `/data/`, que su robots.txt prohíbe. Pedir acceso o cargar a mano |
+| MODO · `modo.com.ar/promos/{slug}` | `modo` | Por tandas: sitemap + página pública de cada promo (datos embebidos del App Router). Ver abajo |
 
 - Antes de leer, se consulta el `robots.txt` del sitio; si prohíbe la ruta, la corrida falla con ese motivo.
 - Las fuentes son `oficial` pero con `auto_publish = false`: **todo va a revisión**.
 - Lo que el equipo rechaza no se vuelve a encolar en las corridas siguientes.
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
+
+### MODO por tandas (0008)
+
+- **Qué se lee y qué no.** El listado `/promos` carga sus tarjetas desde `/api/`, que el `robots.txt` de MODO prohíbe: eso no se toca. Sí se leen el `sitemap.xml` y la página pública de cada promo (`/promos/{slug}`), que trae los datos en el HTML. Falta revisar los términos de uso de MODO y conviene pedirles autorización.
+- **Por qué por tandas.** El sitemap lista ~28.000 páginas y solo ~1.700 están vigentes. Cada corrida lee una tanda (`config.batchSize`, 250 por defecto, con pausa `delayMs` entre consultas) y `source_records` guarda qué pasó con cada página: lo vencido no se relee, lo vigente se revisa cada `recheckDays` (7).
+- **Orden.** Primero los slugs con mes reciente (`…-oct26`, `2609-…`), después los que no dicen fecha, al final los viejos (`modoPriority`).
+- **Interpretación** (`parseModoPromo` en `src/lib/ingest/sites/modo.ts`):
+  - `status: active` y `calculated_status: running` no significan que aplique hoy: mandan vigencia (`start_date`/`stop_date`), días y tarjetas.
+  - Tope: `cap_amount_period` + `cap_period` (day/week/month/promo → día/semana/mes/vigencia); si no hay, `cap_transaction` como tope por compra. `0` es "no hay".
+  - `cap_type: bank` (tope por persona en cada banco), tarjetas habilitadas, cuotas y horario van como texto al inicio de las condiciones; todavía no son campos propios.
+  - El banco no viene como dato: se toma del nombre interno (`2510-credicoop-…`) o del slug. Con banco → ese banco y "pagando con MODO"; sin banco → medio de pago MODO (bancos adheridos) con aviso.
+  - Promos de solo cuotas o vouchers sin porcentaje se saltean (`omitida`).
+  - Avisos que van como motivo de revisión: legales con otra fecha que la vigencia, posible segmento (Platinum, Selecta…), varios bancos, horario parcial.
+- **Bajas.** Una corrida parcial no infiere bajas por ausencia; solo se propone la baja si la página de una promo vigente deja de existir.
+- **Ritmo.** Con el cron diario de Vercel se leen 250 páginas por día. Para la primera pasada conviene apretar "Actualizar ahora" varias veces o llamar al cron más seguido desde un programador externo.
+- Las pruebas usan recortes de páginas reales en `tests/fixtures/modo-*.html` (solo el objeto de la promo).
 
 ### Panel: publicación masiva, comercios y T&C (0007)
 
