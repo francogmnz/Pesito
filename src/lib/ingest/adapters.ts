@@ -6,6 +6,7 @@ import { fetchPage } from "./fetch-page";
 import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
 import { modoCrawler } from "./sites/modo";
 import { parsePedidosYa, PEDIDOSYA_URL } from "./sites/pedidosya";
+import { fetchPrex } from "./sites/prex";
 import { parseUala, UALA_URL } from "./sites/uala";
 
 /**
@@ -128,6 +129,11 @@ export const ADAPTERS: Record<string, Adapter> = {
   uala: pageAdapter("uala", UALA_URL, parseUala),
   pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
   mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
+  // Prex: el listado y después la página de cada promo.
+  prex: {
+    name: "prex",
+    fetchCandidates: async (source, fetcher = fetch) => (await fetchPrex(source, fetcher, todayAR())).map((c) => normalizeRaw(c as Record<string, unknown> & { externalId: string })),
+  },
 };
 
 export const CRAWLERS: Record<string, Crawler> = {

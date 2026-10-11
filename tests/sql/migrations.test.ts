@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -244,6 +244,13 @@ describe("migraciones", () => {
     await db.exec(`set request.jwt.claim.role = ''`);
     const b = await db.query<{ window_kind: string; benefit: string }>(`select window_kind, benefit from public.birthday_details where promotion_id = $1`, [r.rows[0].id]);
     expect(b.rows[0]).toEqual({ window_kind: "dia", benefit: "regalo" });
+  });
+
+  it("Prex queda como fuente oficial sin publicación automática, pagando con la billetera Prex", async () => {
+    const src = await db.query<{ kind: string; auto_publish: boolean; active: boolean }>(`select kind, auto_publish, active from public.sources where adapter = 'prex'`);
+    expect(src.rows).toEqual([{ kind: "oficial", auto_publish: false, active: true }]);
+    const pm = await db.query(`select 1 from public.payment_methods where slug = 'prex'`);
+    expect(pm.rows).toHaveLength(1);
   });
 
   it("MODO queda como fuente por tandas: sin publicación automática y con su registro de páginas solo para admin", async () => {

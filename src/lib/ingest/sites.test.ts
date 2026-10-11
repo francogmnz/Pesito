@@ -10,6 +10,7 @@ import { processCandidates } from "./process";
 import { parseMercadoPago } from "./sites/mercadopago";
 import { modoBanks, modoPriority, parseModoPromo, parseModoSitemap } from "./sites/modo";
 import { parsePedidosYa } from "./sites/pedidosya";
+import { parsePrexList, parsePrexPromo } from "./sites/prex";
 import { parseUala } from "./sites/uala";
 
 const fixture = (n: string) => readFileSync(path.resolve(import.meta.dirname, "../../../tests/fixtures", `${n}.html`), "utf8");
@@ -228,6 +229,61 @@ describe("MODO por tandas", () => {
     const { calls, fetcher } = site("User-agent: *\nDisallow: /\n");
     await expect(CRAWLERS.modo.crawl({ repo: createMemoryRepo(), source: source(), fetcher, today: TODAY, now })).rejects.toThrow("robots.txt");
     expect(calls).toEqual(["/robots.txt"]);
+  });
+});
+
+describe("Prex", () => {
+  const items = parsePrexList(fixture("prex"));
+  const promo = (slug: string) => parsePrexPromo(items.find((i) => i.slug === slug)!, fixture(`prex-${slug}`), TODAY);
+
+  it("del listado toma solo lo que tiene porcentaje", () => {
+    expect(items.map((i) => i.slug)).toEqual(["ypf", "changomas-qr", "temu"]);
+  });
+
+  it("saca tope, mínimo, día y vigencia de la página de la promo", () => {
+    expect(promo("ypf")).toMatchObject({
+      externalId: "prex:198", kind: "reintegro", merchantName: "YPF", discountValue: 10, capAmount: 6000, capPeriod: "semana", minPurchase: 35000,
+      validFrom: "2026-09-28", validUntil: "2026-10-31", daysOfWeek: [1], paymentMethodSlugs: ["prex"], sourceUrl: "https://www.prexcard.com.ar/promociones/ypf",
+    });
+    expect(promo("ypf").flags).toBeUndefined();
+  });
+
+  it("entiende «sin tope» y una vigencia de mes entero", () => {
+    expect(promo("changomas-qr")).toMatchObject({ merchantName: "ChangoMás", kind: "descuento", capAmount: null, capPeriod: "sin_tope", validFrom: "2026-10-01", validUntil: "2026-10-31", daysOfWeek: [0, 5, 6], channel: "local" });
+  });
+
+  it("detecta el código y avisa cuando el tope no aclara el período", () => {
+    const c = promo("temu");
+    expect(c).toMatchObject({ kind: "cupon", audience: "nuevos_clientes", capAmount: 15000, capPeriod: "vigencia", minPurchase: 15000, validUntil: "2026-10-31", channel: "online" });
+    expect(c.coupon).toMatchObject({ code: "PREX26", newCustomersOnly: true });
+    expect(c.flags?.some((f) => f.startsWith("El tope no aclara"))).toBe(true);
+  });
+
+  const src: Source = { id: "src-prex", name: "Prex", url: "https://www.prexcard.com.ar/promociones", kind: "oficial", active: true, adapter: "prex", config: { delayMs: 0 }, autoPublish: false, lastRunAt: null };
+  const site = (missing?: string) => {
+    const calls: string[] = [];
+    const fetcher = (async (u: string) => {
+      const p = String(u).replace("https://www.prexcard.com.ar", "");
+      calls.push(p);
+      if (p === "/robots.txt") return new Response("User-agent: *\nDisallow:\n");
+      if (p === "/promociones") return new Response(fixture("prex"));
+      const slug = p.split("/promociones/")[1];
+      return slug === missing ? new Response("no", { status: 500 }) : new Response(fixture(`prex-${slug}`));
+    }) as unknown as typeof fetch;
+    return { calls, fetcher };
+  };
+
+  it("abre el listado y la página de cada promo, y todo va a revisión", async () => {
+    resetDemoStore();
+    const repo = createMemoryRepo();
+    const { calls, fetcher } = site();
+    const cands = await ADAPTERS.prex.fetchCandidates(src, fetcher);
+    expect(calls).toEqual(["/robots.txt", "/promociones", "/promociones/ypf", "/promociones/changomas-qr", "/promociones/temu"]);
+    expect(await processCandidates(repo, src, cands, { today: TODAY })).toMatchObject({ created: 0, flagged: 3 });
+  });
+
+  it("si falla una página no devuelve una lista incompleta", async () => {
+    await expect(ADAPTERS.prex.fetchCandidates(src, site("temu").fetcher)).rejects.toThrow(/500/);
   });
 });
 

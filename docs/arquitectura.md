@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -97,6 +97,7 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 | Ualá · `uala.com.ar/promociones` | `uala` | JSON embebido de Next.js (`__NEXT_DATA__`): % , tope, días, vigencia, canal, legales y códigos de cupón |
 | PedidosYa · `pedidosya.com.ar/promotions-section/promotions` | `pedidosya` | JSON embebido: banco, %, reintegro o descuento, días. No trae tope ni vigencia |
 | Mercado Pago · `promociones.mercadopago.com.ar` | `mercadopago` | HTML de WordPress: solo promos con % (las de cuotas o 2x1 se ignoran por ahora) |
+| Prex · `prexcard.com.ar/promociones` | `prex` | Listado (`__NEXT_DATA__`) + la página de cada promo (unas 15, con pausa): %, tope, mínimo, días, vigencia y código salen del texto y los términos. Lo que no tiene % (transferencias sin comisión, asistencia sin costo) no se carga. Si una página falla, la corrida entera da error |
 | MODO · `modo.com.ar/promos/{slug}` | `modo` | Por tandas: sitemap + página pública de cada promo (datos embebidos del App Router). Ver abajo |
 
 - Antes de leer, se consulta el `robots.txt` del sitio; si prohíbe la ruta, la corrida falla con ese motivo.
