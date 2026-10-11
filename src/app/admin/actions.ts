@@ -148,9 +148,10 @@ export async function runAutomationNow(): Promise<AdminState> {
     // Solo lo ve el equipo admin: mostramos el motivo real para poder arreglarlo.
     console.error("runAutomationNow", e);
     const msg = e instanceof Error ? e.message : String(e);
-    if (/SUPABASE_SERVICE_ROLE_KEY/.test(msg)) {
-      return { ok: false, message: "Falta la clave secreta de Supabase en Vercel: agregá SUPABASE_SERVICE_ROLE_KEY (la sb_secret_...) y hacé Redeploy." };
+    if (/^Falta SUPABASE_SERVICE_ROLE_KEY/.test(msg)) {
+      return { ok: false, message: "Falta la clave secreta de Supabase: agregá SUPABASE_SERVICE_ROLE_KEY y reiniciá (en Vercel: Redeploy)." };
     }
+    if (/^SUPABASE_SERVICE_ROLE_KEY/.test(msg)) return { ok: false, message: msg };
     if (/invalid api key|jwt|unauthorized|401/i.test(msg)) {
       return { ok: false, message: "Supabase rechazó la clave secreta. Revisá que SUPABASE_SERVICE_ROLE_KEY sea la Secret key (sb_secret_...) completa y hacé Redeploy." };
     }
