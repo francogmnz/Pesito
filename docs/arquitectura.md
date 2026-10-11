@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -106,6 +106,18 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Lo que el equipo rechaza no se vuelve a encolar en las corridas siguientes.
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
+
+### Aprobación automática (0012)
+
+Cada candidato termina en uno de tres lugares (`ingest/process.ts`):
+
+- **Publicado solo**: la fuente es oficial con `auto_publish`, pasa `publishProblems`, el lector no dejó `flags`, no hay dudas generales (`sanityFlags`: porcentaje ≥ 70, comercio genérico, texto con restos de HTML, mínimo que ya supera el tope) y no es un duplicado casi seguro (puntaje ≥ 0,85).
+- **A revisión**: todo lo demás, con el motivo. Las `notes` del lector (dato ya escrito en la promo: segmento, horario, tope sin período) van con el prefijo «Nota: » y no frenan.
+- **Descartado**: vencido en la fuente, solo cuotas o sin porcentaje. No se carga.
+
+Cambios sobre promos ya publicadas: se aplican solos si la fuente es de confianza y no cambia el beneficio (`discountValue`/`discountKind`); si cambia, o si la promo fue corregida a mano (`promotions.manual_edit_at`, lo marca Panel → Promos), van a revisión. Una promo archivada por una persona no se revive; una vencida que la fuente renueva se vuelve a publicar.
+
+Revisión agrupa la cola por fuente y por motivo; filtrando por un motivo se puede publicar o rechazar el grupo entero. `.github/workflows/actualizar.yml` llama a `/api/cron/actualizar` cada media hora (necesita el secreto `CRON_SECRET` en GitHub); Vercel lo hace una vez por día.
 
 ### Panel → Promos
 

@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -246,17 +246,26 @@ describe("migraciones", () => {
     expect(b.rows[0]).toEqual({ window_kind: "dia", benefit: "regalo" });
   });
 
-  it("Prex queda como fuente oficial sin publicación automática, pagando con la billetera Prex", async () => {
+  it("aprobación automática: las fuentes oficiales con lector publican solas; PedidosYa queda pausada y sin publicar", async () => {
+    const src = await db.query<{ adapter: string; auto_publish: boolean; active: boolean }>(`select adapter, auto_publish, active from public.sources where adapter is not null order by adapter`);
+    const auto = src.rows.filter((r) => r.auto_publish).map((r) => r.adapter);
+    expect(auto).toEqual(["farmaonline", "mercadopago", "modo", "prex", "uala"]);
+    expect(src.rows.find((r) => r.adapter === "pedidosya")).toMatchObject({ auto_publish: false, active: false });
+    const col = await db.query(`select 1 from information_schema.columns where table_name = 'promotions' and column_name = 'manual_edit_at'`);
+    expect(col.rows).toHaveLength(1);
+  });
+
+  it("Prex queda como fuente oficial, pagando con la billetera Prex", async () => {
     const src = await db.query<{ kind: string; auto_publish: boolean; active: boolean }>(`select kind, auto_publish, active from public.sources where adapter = 'prex'`);
-    expect(src.rows).toEqual([{ kind: "oficial", auto_publish: false, active: true }]);
+    expect(src.rows).toEqual([{ kind: "oficial", auto_publish: true, active: true }]);
     const pm = await db.query(`select 1 from public.payment_methods where slug = 'prex'`);
     expect(pm.rows).toHaveLength(1);
   });
 
-  it("MODO queda como fuente por tandas: sin publicación automática y con su registro de páginas solo para admin", async () => {
+  it("MODO queda como fuente por tandas, con su registro de páginas solo para admin", async () => {
     const src = await db.query<{ id: string; kind: string; auto_publish: boolean }>(`select id, kind, auto_publish from public.sources where adapter = 'modo'`);
     expect(src.rows).toHaveLength(1);
-    expect(src.rows[0]).toMatchObject({ kind: "oficial", auto_publish: false });
+    expect(src.rows[0]).toMatchObject({ kind: "oficial", auto_publish: true });
     const id = src.rows[0].id;
     await db.query(`insert into public.source_records (source_id, key, priority) values ($1, 'farmaplus-oct26', 1000), ($1, 'vieja-jul23', 610)`, [id]);
     // Volver a cargar el sitemap no pisa lo que ya se sabía de cada página.

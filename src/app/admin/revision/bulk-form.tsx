@@ -8,7 +8,7 @@ import { Icon } from "@/components/icon";
  * Envuelve la lista de la cola: cada fila trae su casilla (name="ids").
  * Barra fija abajo con "Publicar" y "Rechazar" para las marcadas.
  */
-export function BulkForm({ children, total }: { children: React.ReactNode; total: number }) {
+export function BulkForm({ children, total, allowFlagged = false }: { children: React.ReactNode; total: number; allowFlagged?: boolean }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(bulkModerate, null);
   const [count, setCount] = useState(0);
   const [rejecting, setRejecting] = useState(false);
@@ -32,6 +32,7 @@ export function BulkForm({ children, total }: { children: React.ReactNode; total
       onChange={recount}
       className="grid grid-cols-[minmax(0,1fr)] gap-3"
     >
+      {allowFlagged && <input type="hidden" name="conAvisos" value="1" />}
       {total > 0 && (
         <label className="flex items-center gap-2 text-sm font-semibold text-tinta-2">
           <input type="checkbox" className="size-5 accent-[#5c8c3b]" checked={count > 0 && count === total} onChange={(e) => toggleAll(e.target.checked)} />

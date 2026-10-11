@@ -39,7 +39,7 @@ const TABLE: (NamedPayment & { re: RegExp })[] = [
   { slug: "prex", name: "Prex", re: /\bprex\b/ },
   { slug: "modo", name: "MODO", re: /\bmodo\b/ },
   { slug: "yoy", name: "YOY", re: /\byoy\b/ },
-  { slug: "cabal", name: "Cabal", re: /\bcabal\b/ },
+  { slug: "cabal", name: "Cabal", network: true, re: /\bcabal\b/ },
   { slug: null, name: "OSDE", re: /\bosde\b/ },
   { slug: null, name: "Clarín 365", re: /\bclarin 365\b/ },
   { slug: null, name: "Bonda", re: /\bbonda\b/ },

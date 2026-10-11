@@ -244,6 +244,7 @@ export function createMemoryRepo(): Repo {
       coupon: p.coupon,
       birthday: p.birthday,
       lastVerifiedAt: new Date().toISOString(),
+      manualEditAt: prev?.manualEditAt ?? null,
       updatedAt: new Date().toISOString(),
       isSample: false,
     };
@@ -473,6 +474,10 @@ export function createMemoryRepo(): Repo {
       const from = p.status;
       p.status = status;
       logEvent({ entityType: "promotion", entityId: pid, action: status, fromStatus: from, toStatus: status, actorId, note: note ?? null });
+    },
+    async markManualEdit(pid) {
+      const p = s().promotions.find((x) => x.id === pid);
+      if (p) p.manualEditAt = new Date().toISOString();
     },
     async markVerified(pid) {
       const p = s().promotions.find((x) => x.id === pid);

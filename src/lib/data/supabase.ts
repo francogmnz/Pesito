@@ -23,7 +23,7 @@ import type { AdminStats, NewSubmission, PromotionFilter, Repo } from "./repo";
 const PROMO_SELECT = `
   id, kind, audience, title, summary, discount_kind, discount_value, cap_amount, cap_period, min_purchase,
   valid_from, valid_until, days_of_week, channel, conditions, requirements, source_url, external_id, status,
-  fingerprint, last_verified_at, updated_at,
+  fingerprint, last_verified_at, manual_edit_at, updated_at,
   merchant:merchants!inner ( id, slug, name, logo_url, logo_authorized, category:categories ( slug ) ),
   source:sources ( name, kind ),
   promotion_payment_methods ( payment_method:payment_methods ( id, slug, name, kind, color ) ),
@@ -91,6 +91,7 @@ function toPromotion(r: Row): Promotion {
     coupon,
     birthday,
     lastVerifiedAt: r.last_verified_at,
+    manualEditAt: r.manual_edit_at ?? null,
     updatedAt: r.updated_at,
     isSample: false,
   };
@@ -370,6 +371,9 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     },
     async markVerified(id) {
       await must(db.from("promotions").update({ last_verified_at: new Date().toISOString() }).eq("id", id));
+    },
+    async markManualEdit(id) {
+      await must(db.from("promotions").update({ manual_edit_at: new Date().toISOString() }).eq("id", id));
     },
     async expirePromotions() {
       return (await must(db.rpc("expire_promotions"))) as number;

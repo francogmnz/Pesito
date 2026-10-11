@@ -180,6 +180,7 @@ export function buildDemoPromotions(today = todayAR()): Promotion[] {
       birthday: s.birthday ?? null,
       lastVerifiedAt: null,
       updatedAt: new Date().toISOString(),
+      manualEditAt: null,
       isSample: true,
     } satisfies Promotion;
   });

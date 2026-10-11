@@ -85,6 +85,52 @@ describe("automatización", () => {
     expect(cambio.diff?.discountValue).toEqual({ antes: 20, despues: 10 });
   });
 
+  it("fuente oficial con publicación automática: publica sola lo claro y deja en revisión solo lo dudoso", async () => {
+    const repo = createMemoryRepo();
+    const src = { ...oficial, config };
+    const run = async (items: Record<string, unknown>[]) => processCandidates(repo, src, (await jsonFeedAdapter.fetchCandidates(src, fakeFetch(items))).map((c, i) => ({ ...c, ...(items[i].flags ? { flags: items[i].flags as string[] } : {}), ...(items[i].notes ? { notes: items[i].notes as string[] } : {}) })), { today });
+    const r = await run([
+      feedItem({ id: "N1", comercio: "Farmacia Sol", notes: ["La página no menciona tope."] }),
+      feedItem({ id: "F1", comercio: "Bar Luna", flags: ["Aparecen varios bancos: verificar"] }),
+      feedItem({ id: "S1", comercio: "Kiosco Río", discountValue: 100 }),
+      feedItem({ id: "S2", comercio: "Comercios adheridos" }),
+      feedItem({ id: "S3", comercio: "Tienda Mar", title: '20% en Tienda Mar <span class="x-' }),
+    ]);
+    // Una nota no frena; una duda del lector, un porcentaje altísimo o un comercio genérico, sí. El HTML suelto se limpia.
+    expect(r).toMatchObject({ created: 2, flagged: 3 });
+    const pending = (await repo.listSubmissions({ status: "pendiente", origin: "automatizacion" })).filter((s) => ["Bar Luna", "Comercios adheridos", "Kiosco Río", "Farmacia Sol", "Tienda Mar"].includes(s.payload.merchantName));
+    expect(pending.map((s) => s.payload.merchantName).sort()).toEqual(["Bar Luna", "Comercios adheridos", "Kiosco Río"]);
+    const published = await repo.listPromotions({ statuses: ["publicada"], limit: 1000 });
+    expect(published.find((p) => p.merchant.name === "Tienda Mar")!.title).toBe("20% en Tienda Mar");
+  });
+
+  it("fuente oficial: los cambios claros se aplican solos, salvo el beneficio o lo corregido a mano", async () => {
+    const repo = createMemoryRepo();
+    const src = { ...oficial, config };
+    const run = async (item: Record<string, unknown>) => processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([item])), { today });
+    await run(feedItem());
+    const find = async () => (await repo.listPromotions({ statuses: ["publicada", "vencida", "archivada"], limit: 1000 })).find((p) => p.externalId === "A1")!;
+
+    // Cambia el tope y el título: se aplica solo.
+    expect(await run(feedItem({ capAmount: 5000, title: "20% de descuento en Heladería Glaciar" }))).toMatchObject({ updated: 1, flagged: 0 });
+    expect(await find()).toMatchObject({ capAmount: 5000, title: "20% de descuento en Heladería Glaciar" });
+
+    // Vencida y renovada en la fuente: vuelve a publicarse sola.
+    await repo.setPromotionStatus((await find()).id, "vencida", null);
+    expect(await run(feedItem({ capAmount: 5000, title: "20% de descuento en Heladería Glaciar", validUntil: addDaysISO(today, 45) }))).toMatchObject({ updated: 1 });
+    expect((await find()).status).toBe("publicada");
+
+    // Corregida a mano: la fuente ya no la pisa, el cambio va a revisión.
+    await repo.markManualEdit((await find()).id);
+    expect(await run(feedItem({ capAmount: 7000, title: "20% de descuento en Heladería Glaciar", validUntil: addDaysISO(today, 45) }))).toMatchObject({ updated: 0, flagged: 1 });
+    expect((await find()).capAmount).toBe(5000);
+
+    // Archivada por una persona: la fuente no la revive ni la encola.
+    await repo.setPromotionStatus((await find()).id, "archivada", null);
+    expect(await run(feedItem({ capAmount: 9000, validUntil: addDaysISO(today, 45) }))).toMatchObject({ created: 0, updated: 0, flagged: 0 });
+    expect((await find()).status).toBe("archivada");
+  });
+
   it("la misma promo en otra billetera no se duplica: se propone sumar el medio de pago", async () => {
     const repo = createMemoryRepo();
     const a = { ...oficial, config };

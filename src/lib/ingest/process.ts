@@ -47,11 +47,12 @@ export function toPayload(c: RawCandidate, source: Source): PromoPayload {
   };
 }
 
-const COMPARED: (keyof PromoPayload)[] = ["title", "discountKind", "discountValue", "capAmount", "minPurchase", "validFrom", "validUntil", "daysOfWeek", "channel", "conditions"];
+const COMPARED: (keyof PromoPayload)[] = ["title", "summary", "discountKind", "discountValue", "capAmount", "minPurchase", "validFrom", "validUntil", "daysOfWeek", "channel", "conditions"];
 
 export function diffAgainst(p: Promotion, next: PromoPayload): Submission["diff"] {
   const current: Partial<PromoPayload> = {
     title: p.title,
+    summary: p.summary,
     discountKind: p.discountKind,
     discountValue: p.discountValue,
     capAmount: p.capAmount,
@@ -88,6 +89,27 @@ export function sameBenefit(next: PromoPayload, p: Promotion): boolean {
     sameSet(next.daysOfWeek, p.daysOfWeek) &&
     (next.coupon?.code ?? "").toUpperCase() === (p.coupon?.code ?? "").toUpperCase()
   );
+}
+
+/** Aclaraciones que acompañan a la promo pero no frenan su publicación. En la cola se ven con este prefijo. */
+export const NOTE_PREFIX = "Nota: ";
+export const isBlocking = (reason: string) => !reason.startsWith(NOTE_PREFIX);
+
+/**
+ * Dudas que ningún lector puede resolver solo y que conviene que mire una persona
+ * antes de que la promo se publique sin revisión.
+ */
+function sanityFlags(p: PromoPayload): string[] {
+  const out: string[] = [];
+  if (p.discountKind === "porcentaje" && (p.discountValue ?? 0) >= 70) out.push(`El porcentaje es muy alto (${p.discountValue}%): confirmar que no sea solo para usuarios nuevos o un caso especial`);
+  if (/^(comercios?|locales|tiendas|marcas|productos)\b.*\b(adherid|seleccionad|participantes|que acept)/i.test(p.merchantName) || /^(comercios|varios|otros)$/i.test(p.merchantName)) {
+    out.push(`“${p.merchantName}” no es un comercio puntual: revisar dónde aplica`);
+  }
+  if (/<[a-z/]|&[a-z]+;|\uFFFD/i.test(`${p.title} ${p.summary ?? ""} ${p.merchantName}`)) out.push("El texto tiene caracteres extraños: revisar título y resumen");
+  if (p.capAmount != null && p.minPurchase != null && p.discountKind === "porcentaje" && p.discountValue && (p.minPurchase * p.discountValue) / 100 > p.capAmount) {
+    out.push("Con la compra mínima ya se supera el tope: revisar tope y mínimo");
+  }
+  return out;
 }
 
 /** Un cambio es menor si solo se extiende la vigencia: se puede aplicar solo en fuentes oficiales con publicación automática. */
@@ -150,11 +172,17 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       if (!diff) {
         await repo.markVerified(existing.id);
         r.verified++;
-      } else if (trusted && isMinorChange(diff) && payloadSchema.safeParse(payload).success) {
+      } else if (existing.status === "archivada") {
+        // La dio de baja una persona: la fuente no la revive.
+        continue;
+      } else if (trusted && payloadSchema.safeParse(payload).success && (isMinorChange(diff) || (!existing.manualEditAt && !("discountValue" in diff) && !("discountKind" in diff) && !(c.flags ?? []).length && !publishProblems(payload).length && !sanityFlags(payload).length))) {
+        // Fuente oficial sin dudas: el cambio se aplica solo (salvo que cambie el beneficio en sí: eso lo mira una persona). Si la promo estaba vencida y la fuente la renovó, vuelve a publicarse.
         await repo.updatePromotionFromPayload(existing.id, payload, fp);
+        if (existing.status === "vencida" && (!payload.validUntil || payload.validUntil >= opts.today)) await repo.setPromotionStatus(existing.id, "publicada", null, "Renovada en la fuente");
         r.updated++;
       } else {
-        await queue(payload, fp, { flagReasons: ["Cambió en la fuente"], changeType: "cambio", matchedPromotionId: existing.id, diff });
+        const why = existing.manualEditAt ? ["Cambió en la fuente y la promo había sido corregida a mano"] : ["Cambió en la fuente", ...(c.flags ?? []), ...sanityFlags(payload)];
+        await queue(payload, fp, { flagReasons: why, changeType: "cambio", matchedPromotionId: existing.id, diff });
       }
       continue;
     }
@@ -177,10 +205,13 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       continue;
     }
 
-    const flags = [...publishProblems(payload), ...(c.flags ?? [])];
+    const flags = [...publishProblems(payload), ...(c.flags ?? []), ...sanityFlags(payload)];
     if (source.kind !== "oficial") flags.push("La fuente no es oficial: verificar");
+    // Duplicado casi seguro (mismo comercio, tipo, beneficio, fechas y medio de pago, o mismo código) frena; uno apenas parecido es solo una nota.
     const dups = findDuplicates({ ...payload, fingerprint: fp }, active);
-    if (dups.length) flags.push(`Posible duplicado de “${dups[0].promotion.title}”`);
+    const notes = (c.notes ?? []).map((n) => NOTE_PREFIX + n);
+    if (dups.length && dups[0].score >= 0.9) flags.push(`Posible duplicado de “${dups[0].promotion.title}”`);
+    else if (dups.length) notes.push(`${NOTE_PREFIX}Hay otra promo parecida en el mismo comercio: “${dups[0].promotion.title}”`);
 
     if (trusted && flags.length === 0) {
       try {
@@ -191,7 +222,7 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
         await queue(payload, fp, { flagReasons: [`No se pudo publicar: ${e instanceof Error ? e.message : "error"}`] });
       }
     } else {
-      await queue(payload, fp, { flagReasons: flags });
+      await queue(payload, fp, { flagReasons: [...flags, ...notes] });
     }
   }
 
