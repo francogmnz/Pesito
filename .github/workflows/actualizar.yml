@@ -39,3 +39,28 @@ jobs:
             504|000) echo "::warning::La actualización tardó más de lo que espera la llamada. Suele haber terminado igual: se ve en Panel → Automatización." ; exit 0 ;;
             *) echo "::error::Respuesta inesperada del sitio ($code)." ; exit 1 ;;
           esac
+
+  precios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Leer una tanda de precios
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PESITO_URL: ${{ vars.PESITO_URL || 'https://pesito-phi.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta el secreto CRON_SECRET: no se hace nada."
+            exit 0
+          fi
+          code=$(curl --silent --show-error --max-time 330 --output respuesta.txt --write-out "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$PESITO_URL/api/cron/precios" || true)
+          echo "El sitio respondió: $code"
+          cat respuesta.txt 2>/dev/null || true
+          echo
+          case "$code" in
+            200) exit 0 ;;
+            504|000) echo "::warning::La lectura de precios tardó más de lo que espera la llamada. Lo leído quedó guardado." ; exit 0 ;;
+            *) echo "::error::Respuesta inesperada del sitio ($code)." ; exit 1 ;;
+          esac

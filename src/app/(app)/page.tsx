@@ -144,6 +144,14 @@ export default async function HomePage() {
           <Icon name="compare" className="text-verde" />
           <b className="text-[15px] leading-tight">Comparar medios de pago</b>
         </Link>
+        <Link href="/conviene" className="tarjeta col-span-2 flex items-center gap-3 p-4">
+          <Icon name="store" className="text-verde" />
+          <span className="flex-1">
+            <b className="block text-[15px] leading-tight">¿Dónde conviene?</b>
+            <span className="text-sm text-tinta-2">El mismo producto. El mejor precio.</span>
+          </span>
+          <Icon name="chevronRight" className="text-tenue" />
+        </Link>
       </div>
     </div>
   );

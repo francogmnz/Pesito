@@ -17,6 +17,7 @@ import type {
   SourceRecordState,
   Submission,
 } from "@/lib/domain/types";
+import type { Listing, Product, ProductSummary } from "@/lib/domain/products";
 import { friendlyDbError } from "./errors";
 import type { AdminStats, NewSubmission, PromotionFilter, Repo } from "./repo";
 
@@ -135,6 +136,8 @@ async function must<T>(p: PromiseLike<{ data: T; error: unknown }>): Promise<Non
   if (error) throw friendlyDbError(error);
   return data as NonNullable<T>;
 }
+
+const toProduct = (r: Row): Product => ({ id: r.id, ean: r.ean, brand: r.brand, name: r.name, category: r.category, imageUrl: r.image_url });
 
 /**
  * Repo sobre Supabase. Con el cliente de la persona, RLS decide qué puede ver y hacer;
@@ -484,6 +487,35 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       const states: SourceRecordState[] = ["nueva", "vigente", "vencida", "omitida", "sin_datos", "error"];
       const counts = await Promise.all(states.map((st) => db.from("source_records").select("key", { count: "exact", head: true }).eq("source_id", sourceId).eq("state", st)));
       return Object.fromEntries(states.map((st, i) => [st, counts[i].count ?? 0]));
+    },
+
+    async upsertListing(input) {
+      return (await must(db.rpc("upsert_listing", { p: { ...input, search: normalizeText(`${input.brand ?? ""} ${input.title}`) } }))) as "nuevo" | "cambio" | "igual";
+    },
+    async searchProducts(q, limit = 30) {
+      let query = db.from("product_summaries").select("id, ean, brand, name, category, image_url, stores, min_price, max_price").gt("stores", 0);
+      for (const term of normalizeText(q).split(" ").filter(Boolean).slice(0, 6)) query = query.ilike("search", `%${term.replace(/[%_]/g, "")}%`);
+      const rows = await must(query.order("stores", { ascending: false }).order("name").limit(limit));
+      return (rows as Row[]).map((r): ProductSummary => ({ ...toProduct(r), stores: r.stores, minPrice: Number(r.min_price), maxPrice: Number(r.max_price) }));
+    },
+    async getProduct(id) {
+      const { data: p, error } = await db.from("products").select("id, ean, brand, name, category, image_url").eq("id", id).maybeSingle();
+      if (error) throw friendlyDbError(error);
+      if (!p) return null;
+      const rows = await must(db.from("merchant_products").select("url, title, price, list_price, in_stock, last_ok_at, price_changed_at, merchant:merchants!inner ( slug, name )").eq("product_id", id));
+      const listings = (rows as Row[]).map((r): Listing => {
+        const m = one(r.merchant) as Row;
+        return { merchantSlug: m.slug, merchantName: m.name, url: r.url, title: r.title, price: Number(r.price), listPrice: r.list_price == null ? null : Number(r.list_price), inStock: r.in_stock, lastOkAt: r.last_ok_at, priceChangedAt: r.price_changed_at };
+      });
+      return { product: toProduct(p as Row), listings };
+    },
+    async priceStats() {
+      const [products, listings, comparable] = await Promise.all([
+        db.from("products").select("id", { count: "exact", head: true }),
+        db.from("merchant_products").select("id", { count: "exact", head: true }),
+        db.from("product_summaries").select("id", { count: "exact", head: true }).gt("stores", 1),
+      ]);
+      return { products: products.count ?? 0, listings: listings.count ?? 0, comparable: comparable.count ?? 0 };
     },
 
     async countRecentSubmissions(userId, ipHash, sinceISO) {

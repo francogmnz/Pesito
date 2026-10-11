@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -106,6 +106,17 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Lo que el equipo rechaza no se vuelve a encolar en las corridas siguientes.
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
+
+### «¿Dónde conviene?»: productos y precios (0014)
+
+Compara el mismo producto entre comercios. Arranca con perfumería, dermocosmética y cuidado personal de Farmaonline y Farmacity (tiendas VTEX).
+
+- **Datos** (`0014_productos_precios.sql`): `products` (uno por código de barras), `merchant_products` (la publicación de cada comercio, con el precio vigente en la misma fila), `price_history` (una fila solo cuando cambia precio o stock) y la vista `product_summaries` para el buscador. Todo se escribe con `upsert_listing()`. De las fotos se guarda el enlace.
+- **Mismo producto = mismo EAN/GTIN válido** (`domain/products.ts`, con dígito verificador). El `gtin` que las tiendas ponen en su JSON-LD es su código interno; el real está en `__STATE__`. Sin código válido, el producto no se carga: no hay coincidencias por nombre todavía.
+- **Lectura** (`prices/vtex.ts`, `prices/crawl.ts`): sitemap de productos → página pública de cada producto, por tandas, con la misma cola `source_records` de MODO. Lo que es de otro rubro, no tiene código de barras o tiene varias presentaciones en una página se marca y no se relee. Los precios se revisan cada 72 h; después de 5 días sin verificar se muestran como «puede estar desactualizado».
+- **Corre aparte**: `/api/cron/precios` (adaptador `vtex-precios`), llamado por el mismo workflow de GitHub. No pasa por la actualización de promos.
+- **Pantallas**: `/conviene` (buscador) y `/conviene/[id]` (comparación). El costo con promo bancaria usa `compareForMerchant` del motor existente y se muestra siempre como estimación.
+- **Pendiente**: coincidencias por nombre para revisar a mano, más comercios, productos con varias presentaciones, sección de precios en el panel.
 
 ### Aprobación automática (0012)
 
