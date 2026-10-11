@@ -48,7 +48,7 @@ export default async function ProfilePage() {
         <span className="grid size-14 place-items-center rounded-full bg-lima text-xl font-black">{user.name.slice(0, 1).toUpperCase()}</span>
         <div className="flex-1">
           <h1 className="text-[22px] font-black tracking-tight">Hola, {user.name}</h1>
-          <p className="text-sm text-tinta-2">Cada pesito cuenta.</p>
+          <p className="text-sm text-tinta-2">Todas tus promos en un solo lugar.</p>
         </div>
         {user.role === "admin" && (
           <Link href="/admin" className="btn-secundario btn-chico">

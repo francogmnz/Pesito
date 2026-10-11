@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Pesito · Cada pesito cuenta.",
+    name: "Pesito · Todas tus promos en un solo lugar.",
     short_name: "Pesito",
     description: "Promos bancarias, cupones y beneficios de cumpleaños de Argentina en un solo lugar.",
     start_url: "/",

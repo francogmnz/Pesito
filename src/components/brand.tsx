@@ -2,34 +2,38 @@ import Image from "next/image";
 import { hash53 } from "@/lib/domain/fingerprint";
 import type { Merchant, PaymentMethod } from "@/lib/domain/types";
 
-export function Logo({ size = "md", withSlogan = true }: { size?: "sm" | "md" | "lg"; withSlogan?: boolean }) {
-  const h = { sm: 34, md: 44, lg: 96 }[size];
-  if (!withSlogan) {
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Image src="/brand/mascota.png" alt="" width={h} height={h} className="h-auto" style={{ width: h }} loading="eager" />
-        <span className="text-[26px] leading-none font-black tracking-tight text-bosque">Pesito</span>
+/** Logo: el carpincho + "Pesito" en letra redondeada. Con frase debajo si withSlogan. */
+export function Logo({ size = "md", withSlogan = true, inverted = false }: { size?: "sm" | "md" | "lg"; withSlogan?: boolean; inverted?: boolean }) {
+  const h = { sm: 40, md: 56, lg: 96 }[size];
+  return (
+    <span className="inline-flex items-center gap-1.5" aria-label="Pesito" role="img">
+      <Image src="/brand/carpincho-logo.svg" alt="" width={h} height={h} style={{ width: h, height: h }} loading="eager" unoptimized />
+      <span className="flex flex-col">
+        <span className={`font-marca leading-[0.85] font-extrabold tracking-tight ${inverted ? "text-lima" : "text-bosque"}`} style={{ fontSize: h * 0.72 }}>
+          Pesito
+        </span>
+        {withSlogan && size !== "sm" && <span className="mt-1 text-xs font-medium text-tinta-2">{SLOGAN}</span>}
       </span>
-    );
-  }
-  return <Image src="/brand/pesito-logo.png" alt="Pesito · Cada pesito cuenta." width={Math.round(h * 2.73)} height={h} className="h-auto" style={{ width: Math.round(h * 2.73) }} loading="eager" />;
+    </span>
+  );
 }
 
+export const SLOGAN = "Todas tus promos en un solo lugar.";
+
 const POSES = {
-  saludo: { src: "/brand/mascota-saludo.png", w: 305, h: 276 },
-  celular: { src: "/brand/mascota-celular.png", w: 244, h: 244 },
-  corazon: { src: "/brand/mascota-corazon.png", w: 264, h: 259 },
-  camina: { src: "/brand/mascota-camina.png", w: 284, h: 265 },
-  changuito: { src: "/brand/mascota-changuito.png", w: 377, h: 239 },
-  logo: { src: "/brand/mascota.png", w: 554, h: 558 },
+  logo: "/brand/carpincho-logo.svg",
+  saludo: "/brand/carpincho-saludo.svg",
+  celular: "/brand/carpincho-celular.svg",
+  corazon: "/brand/carpincho-corazon.svg",
+  buscando: "/brand/carpincho-buscando.svg",
+  cumple: "/brand/carpincho-cumple.svg",
 } as const;
 
 export type Pose = keyof typeof POSES;
 
-/** La moneda de Pesito. Decorativa: no se lee en voz alta. */
+/** El carpincho de Pesito. Decorativo: no se lee en voz alta. */
 export function Mascot({ pose = "saludo", width = 96, className = "", eager = false }: { pose?: Pose; width?: number; className?: string; eager?: boolean }) {
-  const p = POSES[pose];
-  return <Image src={p.src} alt="" width={p.w} height={p.h} loading={eager ? "eager" : "lazy"} className={`h-auto select-none ${className}`} style={{ width }} />;
+  return <Image src={POSES[pose]} alt="" width={240} height={240} loading={eager ? "eager" : "lazy"} unoptimized className={`h-auto select-none ${className}`} style={{ width }} />;
 }
 
 // Tonos para avatares sin logo: derivados de la paleta, legibles con texto oscuro o claro.
