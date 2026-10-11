@@ -9,6 +9,43 @@ export function extractNextData(html: string): unknown {
   return JSON.parse(m[1]);
 }
 
+/**
+ * Datos que el App Router de Next.js deja embebidos (`self.__next_f.push([1,"…"])`).
+ * Devuelve cada fila por su id. Las filas de texto (`id:T<largo en hex>,…`) se cortan
+ * por bytes, porque pueden traer saltos de línea adentro.
+ */
+export function extractFlightRows(html: string): Map<string, string> {
+  let flight = "";
+  for (const m of html.matchAll(/self\.__next_f\.push\((\[1,"(?:[^"\\]|\\.)*"\])\)/g)) {
+    try {
+      flight += (JSON.parse(m[1]) as [number, string])[1];
+    } catch {
+      // Un bloque ilegible no invalida el resto.
+    }
+  }
+  const bytes = new TextEncoder().encode(flight);
+  const dec = new TextDecoder();
+  const rows = new Map<string, string>();
+  let i = 0;
+  while (i < bytes.length) {
+    const colon = bytes.indexOf(58, i);
+    if (colon < 0) break;
+    const id = dec.decode(bytes.subarray(i, colon));
+    const comma = bytes[colon + 1] === 84 ? bytes.indexOf(44, colon) : -1;
+    const len = comma > 0 ? parseInt(dec.decode(bytes.subarray(colon + 2, comma)), 16) : NaN;
+    if (Number.isFinite(len)) {
+      rows.set(id, dec.decode(bytes.subarray(comma + 1, comma + 1 + len)));
+      i = comma + 1 + len;
+    } else {
+      const nl = bytes.indexOf(10, colon);
+      const end = nl < 0 ? bytes.length : nl;
+      rows.set(id, dec.decode(bytes.subarray(colon + 1, end)));
+      i = end + 1;
+    }
+  }
+  return rows;
+}
+
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#038": "&", "#8211": "–", "#8217": "’", "#8220": "“", "#8221": "”" };
 
 export function decodeEntities(s: string): string {

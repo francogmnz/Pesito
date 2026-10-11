@@ -13,6 +13,8 @@ import type {
   ReportReason,
   ReportStatus,
   Source,
+  SourceRecord,
+  SourceRecordState,
   Submission,
   SubmissionOrigin,
   SubmissionStatus,
@@ -58,6 +60,15 @@ export interface MerchantPatch {
   categorySlug?: string | null;
   logoUrl?: string | null;
   logoAuthorized?: boolean;
+}
+
+export interface SourceRecordPatch {
+  state: SourceRecordState;
+  externalId?: string | null;
+  validUntil?: string | null;
+  /** null = no volver a leerla. */
+  nextCheckAt: string | null;
+  error?: string | null;
 }
 
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
@@ -119,6 +130,17 @@ export interface Repo {
   listIngestionRuns(limit?: number): Promise<IngestionRun[]>;
   recordIngestionRun(run: Omit<IngestionRun, "id" | "sourceName">): Promise<void>;
   findPromotionByExternalId(sourceId: string, externalId: string): Promise<Promotion | null>;
+  /** Huellas de lo que la automatización ya mandó a la cola (pendiente o rechazado): no se vuelve a encolar. */
+  listQueuedFingerprints(): Promise<string[]>;
+  updateSourceConfig(sourceId: string, patch: Record<string, unknown>): Promise<void>;
+
+  // Fuentes que se leen por tandas (una página por promo)
+  /** Agrega las páginas que todavía no se conocían. Las existentes no se tocan. */
+  addSourceRecords(sourceId: string, items: { key: string; priority: number }[]): Promise<void>;
+  /** Páginas que toca leer ahora: primero las de más prioridad. */
+  dueSourceRecords(sourceId: string, nowISO: string, limit: number): Promise<SourceRecord[]>;
+  saveSourceRecord(sourceId: string, key: string, patch: SourceRecordPatch): Promise<void>;
+  sourceRecordStats(sourceId: string): Promise<Partial<Record<SourceRecordState, number>>>;
 
   // Límites
   countRecentSubmissions(userId: string, ipHash: string | null, sinceISO: string): Promise<{ byUser: number; byIp: number }>;

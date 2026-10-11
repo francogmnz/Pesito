@@ -9,11 +9,12 @@ import type {
   PromoUserState,
   Promotion,
   PromotionReport,
+  SourceRecordState,
   Submission,
   UserProfile,
 } from "@/lib/domain/types";
 import * as seed from "./demo-seed";
-import type { AdminStats, NewSubmission, PromotionFilter, Repo } from "./repo";
+import type { AdminStats, NewSubmission, PromotionFilter, Repo, SourceRecordPatch } from "./repo";
 import { LimitError } from "./errors";
 
 interface ReportRow {
@@ -35,6 +36,9 @@ interface Store {
   submissions: (Submission & { ipHash: string | null })[];
   events: ModerationEvent[];
   runs: IngestionRun[];
+  sourceConfig: Map<string, Record<string, unknown>>;
+  /** Clave: "idDeFuente|página". */
+  records: Map<string, SourceRecordPatch & { key: string; priority: number }>;
   images: Map<string, { bytes: Uint8Array; type: string }>;
   seq: number;
 }
@@ -55,6 +59,8 @@ function createStore(): Store {
     submissions: [],
     events: [],
     runs: [],
+    sourceConfig: new Map(),
+    records: new Map(),
     images: new Map(),
     seq: 1,
   };
@@ -484,7 +490,7 @@ export function createMemoryRepo(): Repo {
     },
 
     async listSources() {
-      return clone(seed.sources);
+      return clone(seed.sources.map((x) => ({ ...x, config: { ...x.config, ...s().sourceConfig.get(x.id) } })));
     },
     async listIngestionRuns(limit = 20) {
       return clone(s().runs.slice(0, limit));
@@ -495,6 +501,39 @@ export function createMemoryRepo(): Repo {
     async findPromotionByExternalId(sourceId, externalId) {
       const p = s().promotions.find((x) => x.externalId === externalId && x.sourceName === seed.sources.find((y) => y.id === sourceId)?.name);
       return p ? clone(p) : null;
+    },
+
+    async listQueuedFingerprints() {
+      return s()
+        .submissions.filter((x) => x.origin === "automatizacion" && x.fingerprint && (x.status !== "aprobada" || !x.publishedPromotionId))
+        .map((x) => x.fingerprint!);
+    },
+    async updateSourceConfig(sourceId, patch) {
+      s().sourceConfig.set(sourceId, { ...s().sourceConfig.get(sourceId), ...patch });
+    },
+    async addSourceRecords(sourceId, items) {
+      for (const it of items) {
+        const k = `${sourceId}|${it.key}`;
+        if (!s().records.has(k)) s().records.set(k, { key: it.key, priority: it.priority, state: "nueva", externalId: null, nextCheckAt: new Date(0).toISOString() });
+      }
+    },
+    async dueSourceRecords(sourceId, nowISO, limit) {
+      return [...s().records.entries()]
+        .filter(([k, x]) => k.startsWith(`${sourceId}|`) && x.nextCheckAt != null && x.nextCheckAt <= nowISO)
+        .map(([, x]) => x)
+        .sort((a, b) => b.priority - a.priority || a.nextCheckAt!.localeCompare(b.nextCheckAt!))
+        .slice(0, limit)
+        .map((x) => ({ key: x.key, state: x.state, externalId: x.externalId ?? null }));
+    },
+    async saveSourceRecord(sourceId, key, patch) {
+      const k = `${sourceId}|${key}`;
+      const prev = s().records.get(k);
+      s().records.set(k, { key, priority: prev?.priority ?? 0, ...prev, ...patch });
+    },
+    async sourceRecordStats(sourceId) {
+      const out: Partial<Record<SourceRecordState, number>> = {};
+      for (const [k, x] of s().records) if (k.startsWith(`${sourceId}|`)) out[x.state] = (out[x.state] ?? 0) + 1;
+      return out;
     },
 
     async countRecentSubmissions(userId, ipHash, sinceISO) {

@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -244,5 +244,23 @@ describe("migraciones", () => {
     await db.exec(`set request.jwt.claim.role = ''`);
     const b = await db.query<{ window_kind: string; benefit: string }>(`select window_kind, benefit from public.birthday_details where promotion_id = $1`, [r.rows[0].id]);
     expect(b.rows[0]).toEqual({ window_kind: "dia", benefit: "regalo" });
+  });
+
+  it("MODO queda como fuente por tandas: sin publicación automática y con su registro de páginas solo para admin", async () => {
+    const src = await db.query<{ id: string; kind: string; auto_publish: boolean }>(`select id, kind, auto_publish from public.sources where adapter = 'modo'`);
+    expect(src.rows).toHaveLength(1);
+    expect(src.rows[0]).toMatchObject({ kind: "oficial", auto_publish: false });
+    const id = src.rows[0].id;
+    await db.query(`insert into public.source_records (source_id, key, priority) values ($1, 'farmaplus-oct26', 1000), ($1, 'vieja-jul23', 610)`, [id]);
+    // Volver a cargar el sitemap no pisa lo que ya se sabía de cada página.
+    await db.query(`update public.source_records set state = 'vencida', next_check_at = null where key = 'vieja-jul23'`);
+    await db.query(`insert into public.source_records (source_id, key, priority) values ($1, 'vieja-jul23', 610) on conflict (source_id, key) do nothing`, [id]);
+    const due = await db.query<{ key: string }>(`select key from public.source_records where source_id = $1 and next_check_at <= now() order by priority desc, next_check_at`, [id]);
+    expect(due.rows.map((r) => r.key)).toEqual(["farmaplus-oct26"]);
+    await rejects(db.query(`insert into public.source_records (source_id, key, state) values ($1, 'x', 'inventado')`, [id]));
+    const user = await as(U1, () => db.query(`select key from public.source_records`));
+    expect(user.rows).toHaveLength(0);
+    const bank = await db.query(`select 1 from public.payment_methods where slug = 'banco-corrientes'`);
+    expect(bank.rows).toHaveLength(1);
   });
 });
