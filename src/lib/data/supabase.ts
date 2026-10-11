@@ -424,6 +424,20 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       return r ? toPromotion(r) : null;
     },
 
+    async closeQueued(sourceId, fp, promotionId) {
+      const rows = await must(
+        db
+          .from("promo_submissions")
+          .update({ status: "aprobada", published_promotion_id: promotionId, reviewed_at: new Date().toISOString(), review_note: "Publicada automáticamente: la fuente oficial ya no deja dudas." })
+          .eq("source_id", sourceId)
+          .eq("fingerprint", fp)
+          .eq("origin", "automatizacion")
+          .in("status", ["pendiente", "en_revision"])
+          .is("published_promotion_id", null)
+          .select("id"),
+      );
+      return (rows as Row[]).length;
+    },
     async listQueuedFingerprints() {
       const out: string[] = [];
       // Supabase devuelve de a 1.000 filas: se recorre por páginas.

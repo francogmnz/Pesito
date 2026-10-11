@@ -508,6 +508,11 @@ export function createMemoryRepo(): Repo {
       return p ? clone(p) : null;
     },
 
+    async closeQueued(sourceId, fp, promotionId) {
+      const open = s().submissions.filter((x) => x.sourceId === sourceId && x.fingerprint === fp && x.origin === "automatizacion" && (x.status === "pendiente" || x.status === "en_revision") && !x.publishedPromotionId);
+      for (const x of open) Object.assign(x, { status: "aprobada", publishedPromotionId: promotionId, reviewedAt: new Date().toISOString(), reviewNote: "Publicada automáticamente: la fuente oficial ya no deja dudas." });
+      return open.length;
+    },
     async listQueuedFingerprints() {
       return s()
         .submissions.filter((x) => x.origin === "automatizacion" && x.fingerprint && (x.status !== "aprobada" || !x.publishedPromotionId))

@@ -104,6 +104,20 @@ describe("automatización", () => {
     expect(published.find((p) => p.merchant.name === "Tienda Mar")!.title).toBe("20% en Tienda Mar");
   });
 
+  it("lo que esperaba revisión se publica solo cuando la fuente pasa a ser de confianza, sin quedar repetido en la cola", async () => {
+    const repo = createMemoryRepo();
+    const manual = { ...oficial, autoPublish: false, config };
+    const item = feedItem({ id: "Q1", comercio: "Vivero Loma" });
+    const run = async (src: Source) => processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([item])), { today });
+    expect(await run(manual)).toMatchObject({ created: 0, flagged: 1 });
+    expect(await run({ ...manual, autoPublish: true })).toMatchObject({ created: 1, flagged: 0 });
+    const subs = (await repo.listSubmissions({ origin: "automatizacion", status: "pendiente" })).filter((s) => s.payload.merchantName === "Vivero Loma");
+    expect(subs).toHaveLength(0);
+    const done = (await repo.listSubmissions({ origin: "automatizacion", status: "aprobada" })).filter((s) => s.payload.merchantName === "Vivero Loma");
+    expect(done).toHaveLength(1);
+    expect(done[0].publishedPromotionId).toBeTruthy();
+  });
+
   it("fuente oficial: los cambios claros se aplican solos, salvo el beneficio o lo corregido a mano", async () => {
     const repo = createMemoryRepo();
     const src = { ...oficial, config };

@@ -179,6 +179,7 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
         // Fuente oficial sin dudas: el cambio se aplica solo (salvo que cambie el beneficio en sí: eso lo mira una persona). Si la promo estaba vencida y la fuente la renovó, vuelve a publicarse.
         await repo.updatePromotionFromPayload(existing.id, payload, fp);
         if (existing.status === "vencida" && (!payload.validUntil || payload.validUntil >= opts.today)) await repo.setPromotionStatus(existing.id, "publicada", null, "Renovada en la fuente");
+        if (pendingFps.has(fp)) await repo.closeQueued(source.id, fp, existing.id);
         r.updated++;
       } else {
         const why = existing.manualEditAt ? ["Cambió en la fuente y la promo había sido corregida a mano"] : ["Cambió en la fuente", ...(c.flags ?? []), ...sanityFlags(payload)];
@@ -218,6 +219,8 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
         const created = await repo.publishPayload(payload, { fingerprint: fp, sourceId: source.id, actorId: null });
         active.push(created);
         r.created++;
+        // Si estaba esperando revisión de una corrida anterior, ya no hace falta.
+        if (pendingFps.has(fp)) await repo.closeQueued(source.id, fp, created.id);
       } catch (e) {
         await queue(payload, fp, { flagReasons: [`No se pudo publicar: ${e instanceof Error ? e.message : "error"}`] });
       }
