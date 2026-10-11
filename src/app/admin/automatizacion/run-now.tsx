@@ -11,7 +11,16 @@ export function RunNowButton() {
       <button className="btn-primario" disabled={pending}>
         <Icon name="bolt" size={18} /> {pending ? "Actualizando…" : "Actualizar ahora"}
       </button>
-      {state && <p className={`text-sm font-semibold ${state.ok ? "text-verde-oscuro" : "text-peligro"}`}>{state.message}</p>}
+      {state && (
+        <div role="status" className={`max-w-md text-right text-sm font-semibold ${state.ok ? "text-verde-oscuro" : "text-peligro"}`}>
+          <p>{state.message}</p>
+          {state.problems?.map((p) => (
+            <p key={p} className="mt-1 font-normal text-peligro">
+              {p}
+            </p>
+          ))}
+        </div>
+      )}
     </form>
   );
 }
