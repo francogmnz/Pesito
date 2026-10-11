@@ -221,7 +221,6 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   if (finished) flags.push("MODO la marca como finalizada aunque la vigencia sigue");
 
   const banks = modoBanks({ slug: p.slug, short_description: p.short_description, tags: o.meta?.search_tags });
-  if (banks.length === 0) flags.push("No se reconoció un banco puntual: se cargó como promo de MODO con bancos adheridos");
   if (banks.length > 1) flags.push(`Aparecen varios bancos (${banks.map((b) => b.name).join(", ")}): verificar`);
   const segment = `${p.name ?? ""} ${p.short_description ?? ""} ${p.title ?? ""} ${p.description ?? ""}`.match(SEGMENT);
   const segmentName = segment ? segment[0].replace(/\s+/g, " ").replace(/^./, (ch) => ch.toUpperCase()) : null;

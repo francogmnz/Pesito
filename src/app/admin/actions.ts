@@ -124,7 +124,7 @@ export async function publishSubmission(id: string, _: AdminState): Promise<Admi
 }
 
 /**
- * Acciones en lote desde la cola: "publicar" aprueba y publica cada una (si está completa);
+ * Acciones en lote desde la cola: "publicar" aprueba y publica cada una (si está completa y, siendo nueva, no tiene avisos);
  * "rechazar" las rechaza con el mismo motivo. Devuelve qué se hizo y qué no, con el porqué.
  */
 export async function bulkModerate(_: AdminState, form: FormData): Promise<AdminState> {
@@ -138,6 +138,7 @@ export async function bulkModerate(_: AdminState, form: FormData): Promise<Admin
 
   const repo = await getRepo();
   let done = 0;
+  let flagged = 0;
   const problems: string[] = [];
   for (const id of ids) {
     const sub = await repo.getSubmission(id);
@@ -158,6 +159,11 @@ export async function bulkModerate(_: AdminState, form: FormData): Promise<Admin
         problems.push(`${name}: ${missing[0]}`);
         continue;
       }
+      // Las nuevas con avisos no se publican en lote: hay que abrirlas y mirar el aviso.
+      if (sub.changeType === "nueva" && sub.status !== "aprobada" && sub.flagReasons.length) {
+        flagged++;
+        continue;
+      }
       if (sub.status !== "aprobada") await repo.updateSubmission(id, { status: nextStatus(sub.status, "aprobar") }, admin.id, "aprobar");
       await applySubmission(repo, { ...sub, status: "aprobada" }, admin.id);
       done++;
@@ -165,10 +171,11 @@ export async function bulkModerate(_: AdminState, form: FormData): Promise<Admin
       problems.push(`${name}: ${e instanceof Error ? e.message : "error"}`);
     }
   }
+  if (flagged) problems.unshift(`${flagged} ${flagged === 1 ? "tiene avisos y quedó" : "tienen avisos y quedaron"} sin publicar: abrilas una por una (son las que muestran el aviso en naranja).`);
   refresh();
   revalidatePath("/", "layout");
   const verb = op === "publicar" ? (done === 1 ? "publicada" : "publicadas") : done === 1 ? "rechazada" : "rechazadas";
-  return { ok: done > 0, message: `${done} ${verb}${problems.length ? `, ${problems.length} sin cambios:` : "."}`, problems: problems.length ? problems : undefined };
+  return { ok: done > 0, message: `${done} ${verb}${problems.length ? `, ${problems.length - (flagged ? 1 : 0) + flagged} sin cambios:` : "."}`, problems: problems.length ? problems : undefined };
 }
 
 export async function resolveReport(id: string, status: "resuelto" | "descartado", form: FormData) {
