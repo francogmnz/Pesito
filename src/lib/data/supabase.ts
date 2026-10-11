@@ -20,6 +20,9 @@ import type {
 import { friendlyDbError } from "./errors";
 import type { AdminStats, NewSubmission, PromotionFilter, Repo } from "./repo";
 
+/** Más alto que cualquier página sin leer (máximo 1000). */
+const VIGENTE_PRIORITY = 1100;
+
 const PROMO_SELECT = `
   id, kind, audience, title, summary, discount_kind, discount_value, cap_amount, cap_period, min_purchase,
   valid_from, valid_until, days_of_week, channel, conditions, requirements, source_url, external_id, status,
@@ -472,6 +475,8 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       const upd: Row = { state: patch.state, next_check_at: patch.nextCheckAt, last_checked_at: new Date().toISOString(), error: patch.error ?? null };
       if (patch.externalId !== undefined) upd.external_id = patch.externalId;
       if (patch.validUntil !== undefined) upd.valid_until = patch.validUntil;
+      // Mantener al día lo ya publicado va antes que descubrir páginas nuevas.
+      if (patch.state === "vigente") upd.priority = VIGENTE_PRIORITY;
       const { error } = await db.from("source_records").update(upd).eq("source_id", sourceId).eq("key", key);
       if (error) throw friendlyDbError(error);
     },
