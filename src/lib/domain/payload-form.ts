@@ -1,5 +1,35 @@
 import { parseARS } from "./money";
-import { REQUIREMENTS, type PromoPayload } from "./types";
+import { REQUIREMENTS, type PromoPayload, type Promotion } from "./types";
+
+/** Una promo ya guardada, en el formato del formulario del panel. */
+export function payloadFromPromotion(p: Promotion): PromoPayload {
+  return {
+    kind: p.kind,
+    audience: p.audience,
+    merchantName: p.merchant.name,
+    categorySlug: p.merchant.categorySlug,
+    title: p.title,
+    summary: p.summary,
+    bank: null,
+    wallet: null,
+    paymentMethodSlugs: p.paymentMethods.map((m) => m.slug),
+    discountKind: p.discountKind,
+    discountValue: p.discountValue,
+    capAmount: p.capAmount,
+    capPeriod: p.capPeriod,
+    minPurchase: p.minPurchase,
+    validFrom: p.validFrom,
+    validUntil: p.validUntil,
+    daysOfWeek: p.daysOfWeek,
+    channel: p.channel,
+    conditions: p.conditions,
+    requirements: p.requirements,
+    sourceUrl: p.sourceUrl,
+    externalId: p.externalId,
+    coupon: p.coupon,
+    birthday: p.birthday,
+  };
+}
 
 type Getter = { get(name: string): FormDataEntryValue | null; getAll(name: string): FormDataEntryValue[] };
 

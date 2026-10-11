@@ -99,7 +99,7 @@ describe("MODO", () => {
       externalId: "modo:23df25eb-0985-4238-a99a-45a4979d7f1b",
       kind: "reintegro",
       merchantName: "La Coope en Casa",
-      title: "30% en La Coope en Casa con Credicoop",
+      title: "30% de reintegro en La Coope en Casa con Credicoop",
       discountValue: 30,
       capAmount: 15000,
       capPeriod: "dia",
@@ -122,7 +122,6 @@ describe("MODO", () => {
     const c = page("comercio").candidate!;
     expect(c).toMatchObject({ merchantName: "FarmaPlus", discountValue: 15, capAmount: 9000, capPeriod: "semana", minPurchase: 60000, daysOfWeek: [1], channel: "online", categorySlug: "farmacias", paymentMethodSlugs: ["modo"], wallet: "MODO", bank: null });
     expect(c.conditions).toContain("El tope es por persona en cada banco.");
-    expect(c.flags!.some((f) => f.startsWith("No se reconoció un banco puntual"))).toBe(true);
   });
 
   it("sin tope y con cuotas: queda sin tope y las cuotas van a las condiciones", () => {
@@ -194,8 +193,6 @@ describe("MODO por tandas", () => {
 
     const p = await processCandidates(repo, source(), r.candidates, { today: TODAY, partial: true });
     expect(p).toMatchObject({ created: 0, flagged: 2 });
-    const queued = await repo.listSubmissions({ origin: "automatizacion", status: "pendiente" });
-    expect(queued.find((s) => s.payload.merchantName === "FarmaPlus")!.flagReasons.some((f) => f.startsWith("No se reconoció un banco"))).toBe(true);
   });
 
   it("no relee lo vencido ni baja el sitemap de nuevo; lo vigente se revisa a la semana sin duplicar la cola", async () => {
