@@ -134,6 +134,8 @@ export interface Repo {
   findPromotionByExternalId(sourceId: string, externalId: string): Promise<Promotion | null>;
   /** Huellas de lo que la automatización ya mandó a la cola (pendiente o rechazado): no se vuelve a encolar. */
   listQueuedFingerprints(): Promise<string[]>;
+  /** Cierra lo que esperaba revisión de esa fuente con esa huella: la promo ya se publicó o actualizó sola. Devuelve cuántas cerró. */
+  closeQueued(sourceId: string, fingerprint: string, promotionId: string): Promise<number>;
   updateSourceConfig(sourceId: string, patch: Record<string, unknown>): Promise<void>;
 
   // Fuentes que se leen por tandas (una página por promo)
