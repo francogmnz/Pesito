@@ -99,7 +99,7 @@ describe("MODO", () => {
       externalId: "modo:23df25eb-0985-4238-a99a-45a4979d7f1b",
       kind: "reintegro",
       merchantName: "La Coope en Casa",
-      title: "30% en La Coope en Casa con Credicoop",
+      title: "30% de reintegro en La Coope en Casa con Credicoop",
       discountValue: 30,
       capAmount: 15000,
       capPeriod: "dia",

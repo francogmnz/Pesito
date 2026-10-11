@@ -131,7 +131,15 @@ const NETWORK: Record<string, string> = {
   visa: "Visa", master: "Mastercard", american_express: "American Express", cabal: "Cabal", maestro: "Maestro",
   dinners_club: "Diners", naranja: "Naranja", confiable: "Confiable",
 };
-const SEGMENT = /preferencial|platinum|selecta|black|eminent|signature|premium|sueldo|jubilad|pyme|exclusive/i;
+const SEGMENT = /(preferencial|platinum|selecta|black|eminent|signature|premium|sueldo|jubilad[oa]s?|pyme|exclusive)(\s+nivel\s+\d+)?/i;
+const SEGMENT_AT_END = new RegExp("\\s+(?:" + SEGMENT.source + ")\\s*$", "i");
+
+/** "TENNIS BISTRÓ Selecta" → "Tennis Bistró": sin el segmento pegado al nombre y sin gritar. */
+function niceMerchant(raw: string): string {
+  const name = raw.replace(SEGMENT_AT_END, "").trim() || raw;
+  if (name.length <= 4 || /\p{Ll}/u.test(name)) return name;
+  return name.toLowerCase().replace(/(^|[\s\-/(])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
 
 export interface ModoPage {
   state: Exclude<SourceRecordState, "nueva" | "error">;
@@ -207,7 +215,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
 
   const flags: string[] = [];
   const where = text(p.where);
-  const merchantName = rows[0] || (where && !/adherid|consult/i.test(where) ? where : "");
+  const merchantName = niceMerchant(rows[0] || (where && !/adherid|consult/i.test(where) ? where : ""));
   if (!merchantName) flags.push("No se pudo leer el comercio");
   if (String(p.status ?? "") !== "active") flags.push(`MODO la informa con estado “${p.status}”`);
   if (finished) flags.push("MODO la marca como finalizada aunque la vigencia sigue");
@@ -215,7 +223,8 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   const banks = modoBanks({ slug: p.slug, short_description: p.short_description, tags: o.meta?.search_tags });
   if (banks.length === 0) flags.push("No se reconoció un banco puntual: se cargó como promo de MODO con bancos adheridos");
   if (banks.length > 1) flags.push(`Aparecen varios bancos (${banks.map((b) => b.name).join(", ")}): verificar`);
-  const segment = `${p.short_description ?? ""} ${p.title ?? ""} ${p.description ?? ""}`.match(SEGMENT);
+  const segment = `${p.name ?? ""} ${p.short_description ?? ""} ${p.title ?? ""} ${p.description ?? ""}`.match(SEGMENT);
+  const segmentName = segment ? segment[0].replace(/\s+/g, " ").replace(/^./, (ch) => ch.toUpperCase()) : null;
   if (segment) flags.push(`Puede ser solo para un segmento de clientes (“${segment[0]}”)`);
 
   const capPeriodAmount = positive(t.cap_amount_period);
@@ -224,7 +233,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   let capPeriod: CapPeriod = "sin_tope";
   if (capPeriodAmount) {
     capPeriod = CAP_PERIOD[String(t.cap_period)] ?? "mes";
-    if (!CAP_PERIOD[String(t.cap_period)]) flags.push(`Período del tope desconocido (“${t.cap_period}”)`);
+    if (!CAP_PERIOD[String(t.cap_period)]) flags.push(t.cap_period ? `Período del tope desconocido (“${t.cap_period}”): se cargó como mensual` : "MODO no indica cada cuánto se renueva el tope: se cargó como mensual");
   } else if (capTx) capPeriod = "compra";
   if (capPeriodAmount && capTx && capTx > capPeriodAmount) flags.push("El tope por compra es mayor que el tope del período");
 
@@ -252,6 +261,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   if (!fullDay) flags.push("Tiene horario: no aplica todo el día");
   const lines = [
     banks.length ? "Pagando con MODO desde la app del banco o la app MODO." : "Pagando con MODO con tarjetas de los bancos adheridos.",
+    segmentName ? `Solo para clientes ${segmentName}.` : null,
     cards.length ? `Tarjetas: ${cards.join("; ")}.` : null,
     capPeriodAmount && t.cap_type === "bank" ? "El tope es por persona en cada banco." : null,
     capPeriodAmount && capTx && capTx < capPeriodAmount ? `Tope por compra: ${formatARS(capTx)}.` : null,
@@ -259,11 +269,11 @@ export function parseModoPromo(html: string, today: string): ModoPage {
     fullDay ? null : `Horario: de ${String(p.daily_start_time).slice(0, 5)} a ${String(p.daily_stop_time).slice(0, 5)}.`,
   ].filter(Boolean);
 
-  const name = text(p.name) || `${pct}% en ${merchantName}`;
   const bank = banks.length === 1 ? banks[0] : null;
-  const title = bank && !compact(name).includes(compact(bank.name)) ? `${name} con ${bank.name}` : name;
   const tokens = [...((o.meta?.search_tags ?? []) as unknown[]), ...String(p.short_description ?? "").split("-")].map(compact);
   const reintegro = /reintegro/i.test(`${rows[1]} ${p.description ?? ""} ${p.title ?? ""}`) || !/descuento/i.test(`${rows[1]}`);
+  // El nombre que usa MODO es interno ("TENNIS BISTRÓ Selecta"): el título se arma con los datos.
+  const title = [`${pct}% de ${reintegro ? "reintegro" : "descuento"}`, merchantName ? `en ${merchantName}` : text(p.name), bank ? `con ${bank.name}` : null, segmentName ? `· ${segmentName}` : null].filter(Boolean).join(" ");
 
   const candidate: RawCandidate = {
     externalId,
