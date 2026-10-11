@@ -13,6 +13,7 @@ import type {
   Submission,
   UserProfile,
 } from "@/lib/domain/types";
+import type { Listing, ListingInput, Product, ProductSummary } from "@/lib/domain/products";
 import * as seed from "./demo-seed";
 import type { AdminStats, NewSubmission, PromotionFilter, Repo, SourceRecordPatch } from "./repo";
 import { LimitError } from "./errors";
@@ -40,6 +41,10 @@ interface Store {
   /** Clave: "idDeFuente|página". */
   records: Map<string, SourceRecordPatch & { key: string; priority: number }>;
   images: Map<string, { bytes: Uint8Array; type: string }>;
+  /** Productos por código de barras y publicaciones por "comercio|página". */
+  products: Map<string, Product & { search: string }>;
+  listings: Map<string, Listing & { ean: string }>;
+  priceHistory: { key: string; price: number; at: string }[];
   seq: number;
 }
 
@@ -62,6 +67,9 @@ function createStore(): Store {
     sourceConfig: new Map(),
     records: new Map(),
     images: new Map(),
+    products: new Map(),
+    listings: new Map(),
+    priceHistory: [],
     seq: 1,
   };
   const base = {
@@ -539,6 +547,51 @@ export function createMemoryRepo(): Repo {
       const k = `${sourceId}|${key}`;
       const prev = s().records.get(k);
       s().records.set(k, { key, ...prev, ...patch, priority: patch.state === "vigente" ? 1100 : (prev?.priority ?? 0) });
+    },
+    async upsertListing(input: ListingInput) {
+      const st = s();
+      const now = new Date().toISOString();
+      if (!st.products.has(input.ean)) {
+        st.products.set(input.ean, { id: `prod-${input.ean}`, ean: input.ean, brand: input.brand, name: input.title, category: input.category, imageUrl: input.imageUrl, search: normalizeText(`${input.brand ?? ""} ${input.title}`) });
+      }
+      const key = `${input.merchantSlug}|${input.externalKey}`;
+      const prev = st.listings.get(key);
+      const listPrice = input.listPrice != null && input.listPrice > input.price ? input.listPrice : null;
+      const next = { merchantSlug: input.merchantSlug, merchantName: input.merchantName, url: input.url, title: input.title, price: input.price, listPrice, inStock: input.inStock, lastOkAt: now, ean: input.ean };
+      if (!prev) {
+        st.listings.set(key, { ...next, priceChangedAt: now });
+        st.priceHistory.push({ key, price: input.price, at: now });
+        return "nuevo";
+      }
+      const changed = prev.price !== next.price || prev.listPrice !== next.listPrice || prev.inStock !== next.inStock;
+      st.listings.set(key, { ...next, priceChangedAt: prev.price !== next.price ? now : prev.priceChangedAt });
+      if (changed) st.priceHistory.push({ key, price: input.price, at: now });
+      return changed ? "cambio" : "igual";
+    },
+    async searchProducts(q, limit = 30) {
+      const st = s();
+      const terms = normalizeText(q).split(" ").filter(Boolean);
+      const out: ProductSummary[] = [];
+      for (const p of st.products.values()) {
+        if (!terms.every((t) => p.search.includes(t))) continue;
+        const prices = [...st.listings.values()].filter((l) => l.ean === p.ean && l.inStock).map((l) => l.price);
+        if (!prices.length) continue;
+        out.push({ id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl, stores: prices.length, minPrice: Math.min(...prices), maxPrice: Math.max(...prices) });
+      }
+      return out.sort((a, b) => b.stores - a.stores || a.name.localeCompare(b.name)).slice(0, limit);
+    },
+    async getProduct(id) {
+      const st = s();
+      const p = [...st.products.values()].find((x) => x.id === id);
+      if (!p) return null;
+      const listings = [...st.listings.values()].filter((l) => l.ean === p.ean).map((l) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt }));
+      return { product: { id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl }, listings };
+    },
+    async priceStats() {
+      const st = s();
+      const perEan = new Map<string, number>();
+      for (const l of st.listings.values()) if (l.inStock) perEan.set(l.ean, (perEan.get(l.ean) ?? 0) + 1);
+      return { products: st.products.size, listings: st.listings.size, comparable: [...perEan.values()].filter((n) => n > 1).length };
     },
     async sourceRecordStats(sourceId) {
       const out: Partial<Record<SourceRecordState, number>> = {};

@@ -1,3 +1,4 @@
+import type { Listing, ListingChange, ListingInput, Product, ProductSummary } from "@/lib/domain/products";
 import type {
   Category,
   IngestionRun,
@@ -72,6 +73,13 @@ export interface SourceRecordPatch {
 }
 
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
+export interface PriceStats {
+  products: number;
+  listings: number;
+  /** Productos que están en más de un comercio: los que se pueden comparar. */
+  comparable: number;
+}
+
 export interface Repo {
   readonly mode: "demo" | "supabase";
 
@@ -145,6 +153,14 @@ export interface Repo {
   dueSourceRecords(sourceId: string, nowISO: string, limit: number): Promise<SourceRecord[]>;
   saveSourceRecord(sourceId: string, key: string, patch: SourceRecordPatch): Promise<void>;
   sourceRecordStats(sourceId: string): Promise<Partial<Record<SourceRecordState, number>>>;
+
+  // «¿Dónde conviene?»: productos y precios por comercio
+  /** Guarda lo leído en la página de un comercio; el historial suma una fila solo si cambió precio o stock. */
+  upsertListing(input: ListingInput): Promise<ListingChange>;
+  /** Busca por marca o nombre. Sin texto, devuelve los que están en más comercios. */
+  searchProducts(q: string, limit?: number): Promise<ProductSummary[]>;
+  getProduct(id: string): Promise<{ product: Product; listings: Listing[] } | null>;
+  priceStats(): Promise<PriceStats>;
 
   // Límites
   countRecentSubmissions(userId: string, ipHash: string | null, sinceISO: string): Promise<{ byUser: number; byIp: number }>;

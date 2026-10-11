@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -278,5 +278,31 @@ describe("migraciones", () => {
     expect(user.rows).toHaveLength(0);
     const bank = await db.query(`select 1 from public.payment_methods where slug = 'banco-corrientes'`);
     expect(bank.rows).toHaveLength(1);
+  });
+
+  it("precios: une comercios por código de barras, guarda historial solo si cambia y las personas no pueden escribir", async () => {
+    const listing = (over: Record<string, unknown> = {}) =>
+      JSON.stringify({ merchantSlug: "farmaonline", merchantName: "Farmaonline", externalKey: "crema-350", url: "https://www.farmaonline.com/crema-350/p", ean: "7790375267285", title: "Emulsión nutritiva 350 gr", brand: "bagovit", category: "Cuidado Personal", imageUrl: "https://farmaonline.vtexassets.com/a.jpg", price: 13609.58, listPrice: 27219.16, inStock: true, search: "bagovit emulsion nutritiva 350 gr", ...over });
+    const up = async (over: Record<string, unknown> = {}) => (await as(ADMIN, () => db.query<{ r: string }>(`select public.upsert_listing($1::jsonb) as r`, [listing(over)]))).rows[0].r;
+
+    expect(await up()).toBe("nuevo");
+    expect(await up()).toBe("igual");
+    expect(await up({ price: 14990 })).toBe("cambio");
+    // Mismo código de barras en otro comercio (que todavía no existía): es el mismo producto.
+    expect(await up({ merchantSlug: "farmacity", merchantName: "Farmacity", externalKey: "emulsion-bagovit", url: "https://www.farmacity.com/emulsion-bagovit/p", price: 11990, listPrice: 5000 })).toBe("nuevo");
+
+    const hist = await db.query(`select price from public.price_history order by id`);
+    expect(hist.rows.map((r) => Number((r as { price: string }).price))).toEqual([13609.58, 14990, 11990]);
+    // Cualquiera puede leer el resumen; un precio de lista menor al precio se descarta.
+    const sum = await as(null, () => db.query<{ stores: number; min_price: string; max_price: string }>(`select stores, min_price, max_price from public.product_summaries where search ilike '%bagovit%'`));
+    expect(sum.rows).toEqual([{ stores: 2, min_price: "11990.00", max_price: "14990.00" }]);
+    const lp = await db.query<{ list_price: string | null }>(`select list_price from public.merchant_products where external_key = 'emulsion-bagovit'`);
+    expect(lp.rows[0].list_price).toBeNull();
+
+    await rejects(as(U1, () => db.query(`select public.upsert_listing($1::jsonb)`, [listing({ price: 1 })])));
+    await rejects(as(U1, () => db.query(`update public.merchant_products set price = 1`).then((r) => { if (!r.affectedRows) throw new Error("sin permiso"); })));
+    await rejects(as(ADMIN, () => db.query(`select public.upsert_listing($1::jsonb)`, [listing({ ean: "no-es-un-codigo" })])));
+    const src = await db.query<{ name: string; auto_publish: boolean }>(`select name, auto_publish from public.sources where adapter = 'vtex-precios' order by name`);
+    expect(src.rows).toEqual([{ name: "Farmacity · Precios", auto_publish: false }, { name: "Farmaonline · Precios", auto_publish: false }]);
   });
 });
