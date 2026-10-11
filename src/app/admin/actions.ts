@@ -136,11 +136,24 @@ export async function runAutomationNow(): Promise<AdminState> {
     const repo = await getServiceRepo();
     const result = await runAllSources(repo, { today: todayAR() });
     refresh();
+    if (result.sources === 0) {
+      return { ok: false, message: "No hay fuentes activas. Corré la parte 3 del SQL en Supabase (crea Ualá, PedidosYa y Mercado Pago)." };
+    }
     return {
-      ok: true,
+      ok: result.errors.length < result.sources,
       message: `Listo: ${result.sources} fuentes, ${result.created} nuevas, ${result.updated} actualizadas, ${result.flagged} a revisión, ${result.expired} vencidas.`,
+      problems: result.errors.length ? result.errors : undefined,
     };
   } catch (e) {
-    return fail(e);
+    // Solo lo ve el equipo admin: mostramos el motivo real para poder arreglarlo.
+    console.error("runAutomationNow", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/SUPABASE_SERVICE_ROLE_KEY/.test(msg)) {
+      return { ok: false, message: "Falta la clave secreta de Supabase en Vercel: agregá SUPABASE_SERVICE_ROLE_KEY (la sb_secret_...) y hacé Redeploy." };
+    }
+    if (/invalid api key|jwt|unauthorized|401/i.test(msg)) {
+      return { ok: false, message: "Supabase rechazó la clave secreta. Revisá que SUPABASE_SERVICE_ROLE_KEY sea la Secret key (sb_secret_...) completa y hacé Redeploy." };
+    }
+    return { ok: false, message: `No se pudo actualizar: ${msg.slice(0, 300)}` };
   }
 }
