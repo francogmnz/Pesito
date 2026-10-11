@@ -538,7 +538,7 @@ export function createMemoryRepo(): Repo {
     async saveSourceRecord(sourceId, key, patch) {
       const k = `${sourceId}|${key}`;
       const prev = s().records.get(k);
-      s().records.set(k, { key, priority: prev?.priority ?? 0, ...prev, ...patch });
+      s().records.set(k, { key, ...prev, ...patch, priority: patch.state === "vigente" ? 1100 : (prev?.priority ?? 0) });
     },
     async sourceRecordStats(sourceId) {
       const out: Partial<Record<SourceRecordState, number>> = {};

@@ -71,6 +71,7 @@ const BANKS: Bank[] = [
   { slug: "patagonia", name: "Banco Patagonia", strong: ["bancopatagonia"], weak: ["patagonia*"] },
   { slug: "credicoop", name: "Credicoop", strong: ["credicoop*"] },
   { slug: "icbc", name: "ICBC", strong: ["icbc*"] },
+  { slug: "yoy", name: "YOY", strong: ["yoy"] },
   { slug: "supervielle", name: "Supervielle", strong: ["supervielle*"] },
   { slug: "ciudad", name: "Banco Ciudad", strong: ["bancociudad"], weak: ["ciudad"] },
   { slug: "hipotecario", name: "Banco Hipotecario", strong: ["hipotecario*", "bhn"] },
@@ -131,7 +132,7 @@ const NETWORK: Record<string, string> = {
   visa: "Visa", master: "Mastercard", american_express: "American Express", cabal: "Cabal", maestro: "Maestro",
   dinners_club: "Diners", naranja: "Naranja", confiable: "Confiable",
 };
-const SEGMENT = /(preferencial|platinum|selecta|black|eminent|signature|premium|sueldo|jubilad[oa]s?|pyme|exclusive)(\s+nivel\s+\d+)?/i;
+const SEGMENT = /(preferencial|platinum|selecta|[uú]nico|business|black|eminent|signature|premium|sueldo|jubilad[oa]s?|pyme|exclusive)(\s+nivel\s+\d+)?/i;
 const SEGMENT_AT_END = new RegExp("\\s+(?:" + SEGMENT.source + ")\\s*$", "i");
 
 /** "TENNIS BISTRÓ Selecta" → "Tennis Bistró": sin el segmento pegado al nombre y sin gritar. */
@@ -231,7 +232,10 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   const capTx = positive(t.cap_transaction);
   const capAmount = capPeriodAmount ?? capTx;
   let capPeriod: CapPeriod = "sin_tope";
-  if (capPeriodAmount) {
+  if (capPeriodAmount && !t.cap_period && capTx === capPeriodAmount) {
+    // Sin período y con el mismo importe por compra: es un tope por transacción (así lo dicen los legales).
+    capPeriod = "compra";
+  } else if (capPeriodAmount) {
     capPeriod = CAP_PERIOD[String(t.cap_period)] ?? "mes";
     if (!CAP_PERIOD[String(t.cap_period)]) flags.push(t.cap_period ? `Período del tope desconocido (“${t.cap_period}”): se cargó como mensual` : "MODO no indica cada cuánto se renueva el tope: se cargó como mensual");
   } else if (capTx) capPeriod = "compra";
