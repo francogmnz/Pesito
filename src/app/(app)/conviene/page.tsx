@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/icon";
-import { EmptyState, Notice, PageHeader } from "@/components/ui";
+import { EmptyState, FinePrint, Notice, PageHeader } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { formatARS } from "@/lib/domain/money";
 
@@ -65,6 +65,7 @@ export default async function WherePage({ searchParams }: { searchParams: Promis
           {stats.products > 0 && ` Hoy hay ${stats.products.toLocaleString("es-AR")} productos cargados, ${stats.comparable.toLocaleString("es-AR")} en más de un comercio.`}
         </Notice>
       </div>
+      <FinePrint>Precios, fotos, nombres y disponibilidad tomados de la tienda online de cada comercio en la fecha que se indica junto a cada precio. Pueden cambiar sin aviso o ser distintos en los locales. Pesito no vende productos ni interviene en la compra: el precio final es el que informa el comercio al momento de pagar. Las marcas y sus imágenes pertenecen a sus respectivos dueños.</FinePrint>
     </div>
   );
 }

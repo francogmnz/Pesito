@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/icon";
-import { Notice, PageHeader } from "@/components/ui";
+import { FinePrint, Notice, PageHeader } from "@/components/ui";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { compareForMerchant, type CompareRow } from "@/lib/domain/calc";
 import { todayAR } from "@/lib/domain/dates";
@@ -114,6 +114,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           Los precios son los publicados por cada comercio en su tienda online; pueden cambiar o ser distintos en el local. El costo con promo es una estimación con las promos que Pesito tiene cargadas: no incluye envío ni garantiza que la promo aplique a este producto.
         </Notice>
       </div>
+      <FinePrint>Precios, fotos, nombres y disponibilidad tomados de la tienda online de cada comercio en la fecha que se indica junto a cada precio. Pueden cambiar sin aviso o ser distintos en los locales. Pesito no vende productos ni interviene en la compra: el precio final es el que informa el comercio al momento de pagar. Las marcas y sus imágenes pertenecen a sus respectivos dueños.</FinePrint>
     </div>
   );
 }

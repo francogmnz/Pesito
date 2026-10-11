@@ -80,6 +80,11 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "alerta" |
   );
 }
 
+/** Letra chica al pie de una pantalla: de dónde salen los datos y qué no garantiza Pesito. */
+export function FinePrint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-6 text-[11px] leading-snug text-tenue">{children}</p>;
+}
+
 export function SampleBadge() {
   return (
     <span className="chip bg-alerta-suave text-alerta" title="Dato de ejemplo del modo demo: no es una promo real">
