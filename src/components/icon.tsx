@@ -44,6 +44,15 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M6 16.5 9.5 9h5l3.5 7.5M12 9 10 5H8M14.5 9 16 6h2" />
     </>
   ),
+  bus: (
+    <>
+      <rect x="5" y="3.5" width="14" height="14" rx="2.5" />
+      <path d="M5 11h14M9 3.5v7.5M7 17.5V20M17 17.5V20" />
+      <circle cx="8.5" cy="14.3" r=".9" />
+      <circle cx="15.5" cy="14.3" r=".9" />
+    </>
+  ),
+  book: <path d="M12 6.5C10.5 5 8 4.5 4.5 4.5v13c3.5 0 6 .5 7.5 2 1.5-1.5 4-2 7.5-2v-13C16 4.5 13.5 5 12 6.5zM12 6.5v13" />,
   fuel: <path d="M5 20V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v15M4 20h11M5 10h9M14 8l3.5 2.5V17a1.5 1.5 0 0 0 3 0V9L18 6.5" />,
   shirt: <path d="m8 4-4.5 2.5 2 4L7 10v10h10V10l1.5.5 2-4L16 4c-.7 1.5-2.2 2.5-4 2.5S8.7 5.5 8 4z" />,
   device: (

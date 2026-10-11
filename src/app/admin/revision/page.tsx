@@ -4,6 +4,7 @@ import { todayAR } from "@/lib/domain/dates";
 import { STATUS_LABEL } from "@/lib/domain/moderation";
 import type { SubmissionOrigin, SubmissionStatus } from "@/lib/domain/types";
 import { SubmissionRow } from "../submission-row";
+import { BulkForm } from "./bulk-form";
 
 export const metadata = { title: "Revisión" };
 
@@ -52,12 +53,14 @@ export default async function ReviewList({ searchParams }: { searchParams: Promi
           </Link>
         ))}
       </div>
-      <ul className="tarjeta divide-y divide-linea">
-        {list.map((s) => (
-          <SubmissionRow key={s.id} s={s} />
-        ))}
-        {list.length === 0 && <li className="p-5 text-sm text-tinta-2">No hay sugerencias en “{STATUS_LABEL[status]}”{origin ? " con ese origen" : ""}.</li>}
-      </ul>
+      <BulkForm total={list.filter((s) => !s.publishedPromotionId && status !== "rechazada").length}>
+        <ul className="tarjeta divide-y divide-linea">
+          {list.map((s) => (
+            <SubmissionRow key={s.id} s={s} selectable={status !== "rechazada"} />
+          ))}
+          {list.length === 0 && <li className="p-5 text-sm text-tinta-2">No hay sugerencias en “{STATUS_LABEL[status]}”{origin ? " con ese origen" : ""}.</li>}
+        </ul>
+      </BulkForm>
     </div>
   );
 }

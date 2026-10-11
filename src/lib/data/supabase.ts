@@ -11,6 +11,7 @@ import type {
   PromoPayload,
   PromoUserState,
   Promotion,
+  Merchant,
   Requirement,
   Source,
   Submission,
@@ -36,6 +37,11 @@ const num = (x: unknown) => (x == null ? null : Number(x));
 
 function toPaymentMethod(r: Row): PaymentMethod {
   return { id: r.id, slug: r.slug, name: r.name, kind: r.kind, color: r.color ?? null };
+}
+
+/** Para el panel: devuelve el logo aunque no esté autorizado (la UI pública lo oculta). */
+function toMerchant(m: Row): Merchant {
+  return { id: m.id, slug: m.slug, name: m.name, categorySlug: (one(m.category) as Row | null)?.slug ?? null, logoUrl: m.logo_url, logoAuthorized: m.logo_authorized };
 }
 
 function toPromotion(r: Row): Promotion {
@@ -157,7 +163,22 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     listPaymentMethods: paymentMethods,
     async listMerchants() {
       const rows = await must(db.from("merchants").select("id, slug, name, logo_url, logo_authorized, category:categories ( slug )").order("name"));
-      return rows.map((m: Row) => ({ id: m.id, slug: m.slug, name: m.name, categorySlug: (one(m.category) as Row | null)?.slug ?? null, logoUrl: m.logo_authorized ? m.logo_url : null, logoAuthorized: m.logo_authorized }));
+      return rows.map(toMerchant);
+    },
+    async updateMerchant(mid, patch) {
+      const upd: Row = {};
+      if (patch.categorySlug !== undefined) {
+        upd.category_id = patch.categorySlug ? (await must(db.from("categories").select("id").eq("slug", patch.categorySlug).single())).id : null;
+      }
+      if (patch.logoUrl !== undefined) upd.logo_url = patch.logoUrl;
+      if (patch.logoAuthorized !== undefined) upd.logo_authorized = patch.logoAuthorized;
+      return toMerchant(await must(db.from("merchants").update(upd).eq("id", mid).select("id, slug, name, logo_url, logo_authorized, category:categories ( slug )").single()));
+    },
+    async uploadMerchantLogo(mid, bytes, contentType) {
+      const path = `${mid}/${crypto.randomUUID()}.${contentType.split("/")[1]}`;
+      const { error } = await db.storage.from("logos").upload(path, bytes, { contentType, upsert: false });
+      if (error) throw friendlyDbError(error);
+      return db.storage.from("logos").getPublicUrl(path).data.publicUrl;
     },
 
     async listPromotions(f: PromotionFilter = {}) {

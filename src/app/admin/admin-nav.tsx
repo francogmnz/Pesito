@@ -9,6 +9,7 @@ export function AdminNav({ pending, reports }: { pending: number; reports: numbe
     { href: "/admin", label: "Resumen", active: path === "/admin" },
     { href: "/admin/revision", label: "Revisión", count: pending, active: path.startsWith("/admin/revision") },
     { href: "/admin/reportes", label: "Reportes", count: reports, active: path.startsWith("/admin/reportes") },
+    { href: "/admin/comercios", label: "Comercios", active: path.startsWith("/admin/comercios") },
     { href: "/admin/automatizacion", label: "Automatización", active: path.startsWith("/admin/automatizacion") },
   ];
   return (

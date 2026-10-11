@@ -77,4 +77,46 @@ export const CATEGORY_ICON: Record<string, string> = {
   "tiendas-online": "bag",
   belleza: "sparkle",
   entretenimiento: "ticket",
+  transporte: "bus",
+  educacion: "book",
 };
+
+/**
+ * Rubros donde el "comercio" no es una marca sino un servicio (colectivos, subte,
+ * peajes…). Ahí el ícono del rubro dice más que las iniciales, y "local" no
+ * significa "en locales".
+ */
+const GENERIC_PLACES: [RegExp, string, string][] = [
+  [/colectivo|\bsube\b|bondi/i, "En colectivos", "bus"],
+  [/\bsubte/i, "En el subte", "bus"],
+  [/\btren(es)?\b/i, "En trenes", "bus"],
+  [/peaje/i, "En peajes", "bus"],
+  [/\btaxi|remis/i, "En taxis", "bus"],
+];
+
+function genericPlace(name: string) {
+  return GENERIC_PLACES.find(([re]) => re.test(name));
+}
+
+/** Ícono para mostrar en lugar de iniciales, si el comercio es un servicio genérico. */
+export function genericMerchantIcon(m: { name: string; categorySlug?: string | null }): string | null {
+  const g = genericPlace(m.name);
+  if (g) return g[2];
+  return m.categorySlug === "transporte" ? (CATEGORY_ICON.transporte ?? null) : null;
+}
+
+/** Texto de "Dónde aplica" según el rubro, no solo el canal. */
+export function whereLabel(p: Pick<Promotion, "channel"> & { merchant: { name: string; categorySlug: string | null } }): string {
+  const g = genericPlace(p.merchant.name);
+  if (g) return p.channel === "online" ? `${g[1]}, pagando desde la app` : g[1];
+  switch (p.merchant.categorySlug) {
+    case "transporte":
+      return p.channel === "online" ? "En la app de viajes" : "Al pagar el viaje";
+    case "combustible":
+      return p.channel === "online" ? "Pagando desde la app" : p.channel === "local" ? "En estaciones de servicio" : "En estaciones y en la app";
+    case "delivery":
+      return "En la app";
+    default:
+      return CHANNEL_LABEL[p.channel];
+  }
+}

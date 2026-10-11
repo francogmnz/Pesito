@@ -104,6 +104,14 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
 
+### Panel: publicación masiva, comercios y T&C (0007)
+
+- **Revisión**: casillas por fila y "Marcar todas". "Aprobar y publicar" aplica a las marcadas las mismas validaciones que la publicación individual; las que no pasan quedan en la cola con el motivo. "Rechazar" pide un motivo único.
+- **Comercios** (`/admin/comercios`): rubro y logo. Los logos van al bucket público `logos` (solo admin sube, 1 MB, PNG/JPG/WEBP) y **solo se muestran si se marca "Tengo permiso para usar este logo"** (`merchants.logo_authorized`).
+- **Avatar sin logo**: servicios genéricos (colectivos, subte, trenes, peajes, taxis o rubro Transporte) muestran el ícono; el resto, iniciales con un sello del rubro.
+- **Dónde aplica** depende del rubro: colectivos → "En colectivos", combustible → estaciones o app, delivery → "En la app"; si no, el canal.
+- **T&C**: si son largos, se muestra "Lo importante" (mínimo, tope, acreditación, stock, no acumulable, exclusiones; sin CUIT, domicilios ni leyes) y los legales completos plegados. Lo hace `summarizeConditions` en `src/lib/domain/legal.ts`, sin IA: solo recorta frases del texto original.
+
 ## Pruebas
 
 - `npm test`: reglas de negocio, automatización, lectura con IA y **migraciones SQL contra Postgres real** (PGlite) con RLS y triggers.

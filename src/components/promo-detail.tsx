@@ -1,5 +1,6 @@
 import { formatDate, formatDays } from "@/lib/domain/dates";
-import { capLabel, CHANNEL_LABEL, REQUIREMENT_LABEL } from "@/lib/domain/labels";
+import { capLabel, REQUIREMENT_LABEL, whereLabel } from "@/lib/domain/labels";
+import { LONG_CONDITIONS, summarizeConditions } from "@/lib/domain/legal";
 import { formatARS } from "@/lib/domain/money";
 import type { Promotion } from "@/lib/domain/types";
 import { Icon } from "./icon";
@@ -20,7 +21,7 @@ export function PromoFacts({ promo, today, hideCap = false }: { promo: Promotion
           {promo.paymentMethods.map((p) => p.name).join(", ")}
         </DetailRow>
       )}
-      <DetailRow icon="store" label="Dónde aplica">{CHANNEL_LABEL[promo.channel]}</DetailRow>
+      <DetailRow icon="store" label="Dónde aplica">{whereLabel(promo)}</DetailRow>
     </div>
   );
 }
@@ -39,18 +40,46 @@ export function Requirements({ promo }: { promo: Promotion }) {
   );
 }
 
+/** T&C largos: "Lo importante" en viñetas y los legales completos plegados. */
+function Conditions({ text }: { text: string }) {
+  const bullets = text.length > LONG_CONDITIONS ? summarizeConditions(text) : [];
+  if (!bullets.length) {
+    return (
+      <details className="tarjeta group p-4" open>
+        <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
+          Condiciones
+          <Icon name="chevronDown" size={18} className="transition group-open:rotate-180" />
+        </summary>
+        <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-tinta-2">{text}</p>
+      </details>
+    );
+  }
+  return (
+    <div className="tarjeta p-4">
+      <p className="font-semibold">Lo importante</p>
+      <ul className="mt-2 grid gap-2">
+        {bullets.map((b) => (
+          <li key={b} className="flex gap-2 text-sm leading-relaxed text-tinta-2">
+            <Icon name="checkCircle" size={17} className="mt-0.5 shrink-0 text-verde" />
+            {b}
+          </li>
+        ))}
+      </ul>
+      <details className="group mt-3 border-t border-linea pt-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-verde-oscuro">
+          Ver legales completos
+          <Icon name="chevronDown" size={18} className="transition group-open:rotate-180" />
+        </summary>
+        <p className="mt-2 text-xs leading-relaxed whitespace-pre-line text-tinta-2">{text}</p>
+      </details>
+    </div>
+  );
+}
+
 export function SourceAndConditions({ promo }: { promo: Promotion }) {
   return (
     <div className="grid gap-3">
-      {promo.conditions && (
-        <details className="tarjeta group p-4" open>
-          <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
-            Condiciones
-            <Icon name="chevronDown" size={18} className="transition group-open:rotate-180" />
-          </summary>
-          <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-tinta-2">{promo.conditions}</p>
-        </details>
-      )}
+      {promo.conditions && <Conditions text={promo.conditions} />}
       {promo.sourceUrl && (
         <a href={promo.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="btn-secundario">
           <Icon name="external" size={18} /> Ver en la fuente oficial
