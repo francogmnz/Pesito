@@ -1,8 +1,8 @@
-import { MONTHS } from "@/lib/domain/dates";
+
 import type { Source } from "@/lib/domain/types";
 import type { RawCandidate } from "../adapters";
 import { fetchPage } from "../fetch-page";
-import { capPeriodFrom, extractNextData, findCouponCode, parseDateRange, parseDays, parseMoneyIn, parsePercent, parseSpanishDate, stripTags, truncate } from "../html";
+import { capPeriodFrom, extractNextData, findCouponCode, parseDays, parseMoneyIn, parsePercent, parseValidity, stripTags, truncate } from "../html";
 
 export const PREX_URL = "https://www.prexcard.com.ar/promociones";
 
@@ -20,7 +20,7 @@ export interface PrexItem {
 
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const oneLine = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
-const pad = (n: number) => String(n).padStart(2, "0");
+
 
 /**
  * Listado de Prex (Next.js): __NEXT_DATA__ → props.pageProps.promotionsData.
@@ -51,29 +51,6 @@ function merchantOf(item: PrexItem): { name: string; guessed: boolean } {
   const inTitle = item.title.split(/\s+/).find((w) => norm(w).replace(/[^a-z0-9]/g, "") === word.toLowerCase());
   if (inTitle) return { name: inTitle.replace(/[^\p{L}\p{N}]/gu, ""), guessed: false };
   return { name: word.length <= 4 ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1), guessed: true };
-}
-
-const MONTH_NAMES = MONTHS.map(norm);
-const VALIDITY = /v[aá]lid[ao]s?\s+(?:exclusivamente\s+|todos los d[ií]as,?\s+)?(?:desde|del|hasta|para)|promoci[oó]n vigente|vigencia de la promoci[oó]n/gi;
-
-/** Vigencia según los términos: "desde el 28/09/2026 hasta el 31/10/2026", "del 1° al 31 de octubre de 2026", "de octubre 2026". */
-function validity(legal: string, today: string): { from: string | null; until: string | null } {
-  for (const hit of legal.matchAll(VALIDITY)) {
-    const seg = legal.slice(hit.index, hit.index + 200).replace(/[°º]/g, "");
-    const slashed = [...seg.matchAll(/\d{1,2}\/\d{1,2}\/\d{2,4}/g)].map((m) => parseSpanishDate(m[0], today));
-    if (slashed.length >= 2) return { from: slashed[0], until: slashed[1] };
-    if (slashed.length === 1) return { from: null, until: slashed[0] };
-    const range = parseDateRange(seg, today);
-    if (range.until) return range;
-    // Mes entero: "los viernes, sábados y domingos de octubre 2026".
-    const m = norm(seg).match(new RegExp(`(?:de|del mes de)\\s+(${MONTH_NAMES.join("|")})\\s+(?:de\\s+|del\\s+)?(\\d{4})`));
-    if (m) {
-      const month = MONTH_NAMES.indexOf(m[1]) + 1;
-      const y = Number(m[2]);
-      return { from: `${y}-${pad(month)}-01`, until: `${y}-${pad(month)}-${pad(new Date(Date.UTC(y, month, 0)).getUTCDate())}` };
-    }
-  }
-  return { from: null, until: null };
 }
 
 /**
@@ -107,7 +84,7 @@ export function parsePrexPromo(item: PrexItem, html: string, today: string): Raw
   if (!cap && !/sin tope/i.test(all)) flags.push("La página no menciona tope: confirmar que no tiene.");
   const minText = all.match(/(?:m[ií]nimo de compra|compra m[ií]nima|a partir de)[^$\n]{0,60}\$\s?[\d.]+/i)?.[0] ?? null;
 
-  const { from, until } = validity(legal, today);
+  const { from, until } = parseValidity(legal, today);
   if (!until) flags.push("No se encontró la vigencia en los términos.");
 
   const local = /sucursales|presencial|\bQR\b|\bNFC\b/i.test(all);

@@ -3,6 +3,7 @@ import { isValidISODate, todayAR } from "@/lib/domain/dates";
 import type { PromoPayload, Source } from "@/lib/domain/types";
 import { isSafePublicUrl } from "@/lib/domain/validation";
 import { fetchPage } from "./fetch-page";
+import { FARMAONLINE_URL, parseFarmaonline } from "./sites/farmaonline";
 import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
 import { modoCrawler } from "./sites/modo";
 import { parsePedidosYa, PEDIDOSYA_URL } from "./sites/pedidosya";
@@ -129,6 +130,7 @@ export const ADAPTERS: Record<string, Adapter> = {
   uala: pageAdapter("uala", UALA_URL, parseUala),
   pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
   mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
+  farmaonline: pageAdapter("farmaonline", FARMAONLINE_URL, parseFarmaonline),
   // Prex: el listado y después la página de cada promo.
   prex: {
     name: "prex",

@@ -7,6 +7,7 @@ import { ADAPTERS, CRAWLERS } from "./adapters";
 import { robotsDisallows } from "./fetch-page";
 import { findCouponCode, parseDateRange, parseDays, parseSpanishDate } from "./html";
 import { processCandidates } from "./process";
+import { parseFarmaonline } from "./sites/farmaonline";
 import { parseMercadoPago } from "./sites/mercadopago";
 import { modoBanks, modoPriority, parseModoPromo, parseModoSitemap } from "./sites/modo";
 import { parsePedidosYa } from "./sites/pedidosya";
@@ -281,6 +282,41 @@ describe("Prex", () => {
 
   it("si falla una página no devuelve una lista incompleta", async () => {
     await expect(ADAPTERS.prex.fetchCandidates(src, site("temu").fetcher)).rejects.toThrow(/500/);
+  });
+});
+
+describe("Farmaonline", () => {
+  const list = parseFarmaonline(fixture("farmaonline"), TODAY);
+  const by = (id: string) => list.find((c) => c.externalId === id)!;
+
+  it("saltea las tarjetas de solo cuotas y lee el resto", () => {
+    expect(list.map((c) => c.externalId)).toEqual(["farmaonline:modo:20:2", "farmaonline:mercado-pago:20:24", "farmaonline:amex:10:5", "farmaonline:cabal+credicoop:30:2", "farmaonline:x:20:todos:onsale"]);
+    expect(list.every((c) => c.merchantName === "Farmaonline" && c.categorySlug === "farmacias" && c.channel === "online")).toBe(true);
+  });
+
+  it("promo de MODO con muchos bancos: tope semanal, mínimo, día y vigencia", () => {
+    expect(by("farmaonline:modo:20:2")).toMatchObject({ kind: "reintegro", title: "20% de reintegro en Farmaonline con MODO", paymentMethodSlugs: ["modo"], discountValue: 20, capAmount: 16000, capPeriod: "semana", minPurchase: 70000, validFrom: "2026-10-06", validUntil: "2026-10-27", daysOfWeek: [2] });
+    expect(by("farmaonline:modo:20:2").flags).toBeUndefined();
+  });
+
+  it("Amex emitida por varios bancos es una promo de Amex", () => {
+    expect(by("farmaonline:amex:10:5")).toMatchObject({ kind: "descuento", paymentMethodSlugs: ["amex"], capAmount: 10000, capPeriod: "compra", daysOfWeek: [5], validUntil: "2026-10-31" });
+  });
+
+  it("avisa lo dudoso: grupo de clientes, tope sin período, varios medios, sin fecha de fin", () => {
+    const mp = by("farmaonline:mercado-pago:20:24");
+    expect(mp).toMatchObject({ paymentMethodSlugs: ["mercado-pago"], capAmount: 16000, capPeriod: "vigencia", minPurchase: 80000, daysOfWeek: [2, 4] });
+    expect(mp.flags).toHaveLength(2);
+    const cabal = by("farmaonline:cabal+credicoop:30:2");
+    expect(cabal).toMatchObject({ validFrom: "2025-11-01", validUntil: null, capPeriod: "semana" });
+    expect(cabal.flags!.some((f) => f.startsWith("Aparecen varios medios de pago"))).toBe(true);
+  });
+
+  it("un cupón de la tienda no necesita medio de pago", () => {
+    const c = by("farmaonline:x:20:todos:onsale");
+    expect(c).toMatchObject({ kind: "cupon", paymentMethodSlugs: [], validUntil: "2026-10-12" });
+    expect(c.coupon).toMatchObject({ code: "ONSALE" });
+    expect(c.flags!.some((f) => f.startsWith("No se reconoció"))).toBe(false);
   });
 });
 
