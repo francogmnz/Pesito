@@ -4,15 +4,21 @@ import { CATEGORY_ICON, genericMerchantIcon } from "@/lib/domain/labels";
 import { Icon } from "./icon";
 import type { Merchant, PaymentMethod } from "@/lib/domain/types";
 
-/** Logo: el carpincho + "Pesito" en letra redondeada. Con frase debajo si withSlogan. */
+/** Logo: la moneda + "Pesito" con el punto de la i en lima. Con frase debajo si withSlogan. */
 export function Logo({ size = "md", withSlogan = true, inverted = false }: { size?: "sm" | "md" | "lg"; withSlogan?: boolean; inverted?: boolean }) {
-  const h = { sm: 40, md: 56, lg: 96 }[size];
+  const h = { sm: 36, md: 52, lg: 88 }[size];
+  const fs = h * 0.82;
   return (
-    <span className="inline-flex items-center gap-1.5" aria-label="Pesito" role="img">
-      <Image src="/brand/carpincho-logo.svg" alt="" width={h} height={h} style={{ width: h, height: h }} loading="eager" unoptimized />
+    <span className="inline-flex items-center gap-2" aria-label="Pesito" role="img">
+      <Image src="/brand/pesito-moneda.svg" alt="" width={h} height={h} style={{ width: h, height: h }} loading="eager" unoptimized />
       <span className="flex flex-col">
-        <span className={`font-marca leading-[0.85] font-extrabold tracking-tight ${inverted ? "text-lima" : "text-bosque"}`} style={{ fontSize: h * 0.72 }}>
-          Pesito
+        <span aria-hidden className={`font-marca leading-[0.9] font-extrabold tracking-tight ${inverted ? "text-white" : "text-bosque"}`} style={{ fontSize: fs }}>
+          Pes
+          <span className="relative">
+            ı
+            <span className="absolute left-1/2 -translate-x-1/2 rounded-full bg-lima" style={{ top: fs * 0.25, width: fs * 0.21, height: fs * 0.21 }} />
+          </span>
+          to
         </span>
         {withSlogan && size !== "sm" && <span className="mt-1 text-xs font-medium text-tinta-2">{SLOGAN}</span>}
       </span>
@@ -23,7 +29,7 @@ export function Logo({ size = "md", withSlogan = true, inverted = false }: { siz
 export const SLOGAN = "Todas tus promos en un solo lugar.";
 
 const POSES = {
-  logo: "/brand/carpincho-logo.svg",
+  logo: "/brand/pesito-moneda.svg",
   saludo: "/brand/carpincho-saludo.svg",
   celular: "/brand/carpincho-celular.svg",
   corazon: "/brand/carpincho-corazon.svg",
