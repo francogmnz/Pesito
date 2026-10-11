@@ -41,7 +41,7 @@ export async function crawlPrices(ctx: { repo: Repo; source: Source; fetcher?: t
   const delayMs = int(cfg.delayMs, 300, 0, 10_000);
   const recheckHours = int(cfg.recheckHours, 72, 1, 24 * 60);
   const concurrency = int(cfg.concurrency, 3, 1, 4);
-  const deadline = Date.now() + int(cfg.maxSeconds, 110, 5, 3600) * 1000;
+  const deadline = Date.now() + int(cfg.maxSeconds, 200, 5, 3600) * 1000;
   const scope = new RegExp(typeof cfg.scope === "string" && cfg.scope ? cfg.scope : DEFAULT_SCOPE, "i");
   const robotsCache = new Map<string, string | null>();
   const xml = { accept: "application/xml,text/xml", maxBytes: 12 * 1024 * 1024, robotsCache };
@@ -150,7 +150,9 @@ export interface PriceRunSummary {
 export async function runPriceSources(repo: Repo, opts: { fetcher?: typeof fetch } = {}): Promise<PriceRunSummary> {
   const sum: PriceRunSummary = { sources: 0, checked: 0, created: 0, changed: 0, skipped: 0, errors: [] };
   const sources = (await repo.listSources()).filter((s) => s.active && s.adapter === PRICE_ADAPTER);
-  for (const source of sources) {
+  // Cada comercio es un sitio distinto: se leen a la vez para aprovechar el tiempo de la corrida.
+  await Promise.all(
+    sources.map(async (source) => {
     sum.sources++;
     const startedAt = new Date().toISOString();
     try {
@@ -166,6 +168,7 @@ export async function runPriceSources(repo: Repo, opts: { fetcher?: typeof fetch
       sum.errors.push(`${source.name}: ${msg}`);
       await repo.recordIngestionRun({ sourceId: source.id, startedAt, finishedAt: new Date().toISOString(), found: 0, created: 0, updated: 0, verified: 0, flagged: 0, error: msg.slice(0, 500) });
     }
-  }
+    }),
+  );
   return sum;
 }
