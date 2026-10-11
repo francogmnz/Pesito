@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { DEMO_COOKIE, getCurrentUser, getRepo, type DemoIdentity } from "@/lib/data";
 import { LimitError } from "@/lib/data/errors";
@@ -202,6 +202,28 @@ export async function signOut() {
   }
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/** Dirección pública del sitio para las vueltas de inicio de sesión: la del pedido actual (sirve igual en producción y en local). */
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/** Entrar con Google: Supabase arma la dirección de Google y a la vuelta /auth/callback canjea el código por la sesión. */
+export async function signInWithGoogle(form: FormData): Promise<void> {
+  const next = safeNext(form.get("volver"));
+  const { createUserClient } = await import("@/lib/supabase/server");
+  const supabase = await createUserClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${await siteOrigin()}/auth/callback?volver=${encodeURIComponent(next)}` },
+  });
+  if (error || !data.url) redirect(`/ingresar?error=google&volver=${encodeURIComponent(next)}`);
+  redirect(data.url);
 }
 
 export async function requestMagicLink(_: FormState, form: FormData): Promise<FormState> {
