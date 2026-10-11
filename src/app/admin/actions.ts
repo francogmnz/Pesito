@@ -105,7 +105,7 @@ export async function publishSubmission(id: string, _: AdminState): Promise<Admi
       await repo.setPromotionStatus(sub.matchedPromotionId, "publicada", admin.id, "Cambio aprobado");
       promotionId = sub.matchedPromotionId;
     } else {
-      promotionId = (await repo.publishPayload(sub.payload, { fingerprint: fp, actorId: admin.id })).id;
+      promotionId = (await repo.publishPayload(sub.payload, { fingerprint: fp, actorId: admin.id, sourceId: sub.sourceId })).id;
     }
     await repo.updateSubmission(id, { publishedPromotionId: promotionId }, admin.id, "publicada");
   } catch (e) {

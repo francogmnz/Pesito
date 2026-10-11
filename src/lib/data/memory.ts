@@ -60,6 +60,7 @@ function createStore(): Store {
   };
   const base = {
     changeType: "nueva" as const,
+    sourceId: null,
     diff: null,
     matchedPromotionId: null,
     publishedPromotionId: null,
@@ -365,6 +366,7 @@ export function createMemoryRepo(): Repo {
         origin: n.origin,
         status: "pendiente",
         changeType: n.changeType ?? "nueva",
+        sourceId: n.sourceId ?? null,
         sourceName: n.sourceId ? (seed.sources.find((x) => x.id === n.sourceId)?.name ?? null) : null,
         payload: clone(n.payload),
         diff: n.diff ?? null,

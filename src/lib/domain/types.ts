@@ -163,6 +163,7 @@ export interface Submission {
   origin: SubmissionOrigin;
   status: SubmissionStatus;
   changeType: SubmissionChange;
+  sourceId: string | null;
   sourceName: string | null;
   payload: PromoPayload;
   diff: Record<string, { antes: unknown; despues: unknown }> | null;

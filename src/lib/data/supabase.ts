@@ -97,6 +97,7 @@ function toSubmission(r: Row): Submission {
     origin: r.origin,
     status: r.status,
     changeType: r.change_type,
+    sourceId: r.source_id ?? null,
     sourceName: (one(r.source) as Row | null)?.name ?? null,
     payload: r.payload,
     diff: r.diff,
