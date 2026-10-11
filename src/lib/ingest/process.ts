@@ -87,8 +87,9 @@ function isMinorChange(diff: NonNullable<Submission["diff"]>): boolean {
 export async function processCandidates(repo: Repo, source: Source, candidates: RawCandidate[], opts: { today: string }): Promise<IngestResult> {
   const r: IngestResult = { found: candidates.length, created: 0, updated: 0, verified: 0, flagged: 0, skippedExpired: 0 };
   const active = await repo.listPromotions({ statuses: ["publicada", "en_revision", "borrador"], limit: 1000 });
-  const pending = await repo.listSubmissions({ status: "pendiente" });
-  const pendingFps = new Set(pending.map((s) => s.fingerprint));
+  // No volver a encolar lo que ya está en la cola ni lo que el equipo ya rechazó.
+  const known = await repo.listSubmissions({ origin: "automatizacion" });
+  const pendingFps = new Set(known.filter((s) => s.status !== "aprobada" || !s.publishedPromotionId).map((s) => s.fingerprint));
   const seenExternal = new Set<string>();
   const trusted = source.kind === "oficial" && source.autoPublish;
 

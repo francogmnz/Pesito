@@ -89,6 +89,21 @@ Barra inferior con 4 destinos y un botón central:
 
 Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = 'json-feed'` y, si hace falta, `config.fieldMap` para mapear nombres de campos.
 
+### Lectores de páginas (0006)
+
+| Fuente | Adaptador | Cómo lee |
+|---|---|---|
+| Ualá · `uala.com.ar/promociones` | `uala` | JSON embebido de Next.js (`__NEXT_DATA__`): % , tope, días, vigencia, canal, legales y códigos de cupón |
+| PedidosYa · `pedidosya.com.ar/promotions-section/promotions` | `pedidosya` | JSON embebido: banco, %, reintegro o descuento, días. No trae tope ni vigencia |
+| Mercado Pago · `promociones.mercadopago.com.ar` | `mercadopago` | HTML de WordPress: solo promos con % (las de cuotas o 2x1 se ignoran por ahora) |
+| MODO | — | No se lee: las promos salen de `/api/` y `/data/`, que su robots.txt prohíbe. Pedir acceso o cargar a mano |
+
+- Antes de leer, se consulta el `robots.txt` del sitio; si prohíbe la ruta, la corrida falla con ese motivo.
+- Las fuentes son `oficial` pero con `auto_publish = false`: **todo va a revisión**.
+- Lo que el equipo rechaza no se vuelve a encolar en las corridas siguientes.
+- Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
+- Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
+
 ## Pruebas
 
 - `npm test`: reglas de negocio, automatización, lectura con IA y **migraciones SQL contra Postgres real** (PGlite) con RLS y triggers.

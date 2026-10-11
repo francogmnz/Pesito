@@ -1,6 +1,10 @@
-import { isValidISODate } from "@/lib/domain/dates";
+import { isValidISODate, todayAR } from "@/lib/domain/dates";
 import type { PromoPayload, Source } from "@/lib/domain/types";
 import { isSafePublicUrl } from "@/lib/domain/validation";
+import { fetchPage } from "./fetch-page";
+import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
+import { parsePedidosYa, PEDIDOSYA_URL } from "./sites/pedidosya";
+import { parseUala, UALA_URL } from "./sites/uala";
 
 /** Candidato tal como sale de una fuente: parcial, con un identificador estable en esa fuente. */
 export type RawCandidate = Partial<PromoPayload> & { externalId: string };
@@ -85,4 +89,18 @@ export function normalizeRaw(o: Record<string, unknown> & { externalId: string }
   };
 }
 
-export const ADAPTERS: Record<string, Adapter> = { [jsonFeedAdapter.name]: jsonFeedAdapter };
+/** Páginas públicas de promociones: cada sitio tiene su lector. Todo lo que leen va a revisión. */
+const pageAdapter = (name: string, defaultUrl: string, parse: (html: string, today: string) => RawCandidate[]): Adapter => ({
+  name,
+  async fetchCandidates(source, fetcher = fetch) {
+    const html = await fetchPage(source.url || defaultUrl, fetcher);
+    return parse(html, todayAR()).map((c) => normalizeRaw(c as Record<string, unknown> & { externalId: string }));
+  },
+});
+
+export const ADAPTERS: Record<string, Adapter> = {
+  [jsonFeedAdapter.name]: jsonFeedAdapter,
+  uala: pageAdapter("uala", UALA_URL, parseUala),
+  pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
+  mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
+};
