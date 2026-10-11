@@ -106,6 +106,10 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
 
+### La misma promo en varias billeteras
+
+Hay promos que varias fuentes publican por separado (un código de Mastercard que sirve con Ualá y con Prex). Si un candidato nuevo coincide con una promo publicada en comercio, beneficio, tope, mínimo, días, vencimiento y código (`sameBenefit` en `ingest/process.ts`), no se crea otra: va a revisión un cambio que le suma el medio de pago a la existente. Una vez aprobado, las dos fuentes la dan por verificada. La baja la sigue detectando solo la fuente que la creó.
+
 ### MODO por tandas (0008)
 
 - **Qué se lee y qué no.** El listado `/promos` carga sus tarjetas desde `/api/`, que el `robots.txt` de MODO prohíbe: eso no se toca. Sí se leen el `sitemap.xml` y la página pública de cada promo (`/promos/{slug}`), que trae los datos en el HTML. Falta revisar los términos de uso de MODO y conviene pedirles autorización.

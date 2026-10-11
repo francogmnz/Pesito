@@ -1,6 +1,6 @@
 import type { Repo } from "@/lib/data/repo";
 import { findDuplicates } from "@/lib/domain/duplicates";
-import { fingerprint } from "@/lib/domain/fingerprint";
+import { fingerprint, normalizeText } from "@/lib/domain/fingerprint";
 import type { PromoPayload, Promotion, Source, Submission } from "@/lib/domain/types";
 import { payloadSchema, publishProblems } from "@/lib/domain/validation";
 import type { RawCandidate } from "./adapters";
@@ -70,6 +70,26 @@ export function diffAgainst(p: Promotion, next: PromoPayload): Submission["diff"
   return Object.keys(out).length ? out : null;
 }
 
+const sameSet = (a: number[] | null, b: number[] | null) => JSON.stringify([...(a ?? [])].sort()) === JSON.stringify([...(b ?? [])].sort());
+
+/**
+ * La misma promo ofrecida por otra billetera o banco (por ejemplo, un código de Mastercard que sirve con Ualá y con Prex):
+ * mismo comercio, beneficio, tope, mínimo, días, vencimiento y código. Solo cambia el medio de pago.
+ */
+export function sameBenefit(next: PromoPayload, p: Promotion): boolean {
+  return (
+    normalizeText(next.merchantName) === normalizeText(p.merchant.name) &&
+    next.discountKind === p.discountKind &&
+    (next.discountValue ?? null) === (p.discountValue ?? null) &&
+    (next.capAmount ?? null) === (p.capAmount ?? null) &&
+    next.capPeriod === p.capPeriod &&
+    (next.minPurchase ?? null) === (p.minPurchase ?? null) &&
+    (next.validUntil ?? null) === (p.validUntil ?? null) &&
+    sameSet(next.daysOfWeek, p.daysOfWeek) &&
+    (next.coupon?.code ?? "").toUpperCase() === (p.coupon?.code ?? "").toUpperCase()
+  );
+}
+
 /** Un cambio es menor si solo se extiende la vigencia: se puede aplicar solo en fuentes oficiales con publicación automática. */
 function isMinorChange(diff: NonNullable<Submission["diff"]>): boolean {
   const keys = Object.keys(diff);
@@ -117,7 +137,15 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
     const fp = fingerprint(payload);
     const existing = (await repo.findPromotionByExternalId(source.id, c.externalId)) ?? active.find((p) => p.fingerprint === fp) ?? null;
 
-    if (existing) {
+    // La misma promo ya publicada con otro medio de pago: no se duplica, se propone sumarle el medio de pago.
+    const twin = active.find((p) => p.id !== existing?.id && p.status === "publicada" && p.paymentMethods.length > 0 && payload.paymentMethodSlugs.length > 0 && sameBenefit(payload, p));
+
+    // Una copia archivada de esta fuente no cuenta si la promo sigue publicada con otro medio de pago.
+    if (existing && !(existing.status === "archivada" && twin)) {
+      // Si la promo ya suma medios de pago de otras fuentes, un cambio de esta fuente no los pisa.
+      const own = new Set(payload.paymentMethodSlugs);
+      const others = existing.paymentMethods.map((m) => m.slug).filter((s) => !own.has(s));
+      if (own.size && others.length) payload.paymentMethodSlugs = [...payload.paymentMethodSlugs, ...others];
       const diff = diffAgainst(existing, payload);
       if (!diff) {
         await repo.markVerified(existing.id);
@@ -128,6 +156,24 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       } else {
         await queue(payload, fp, { flagReasons: ["Cambió en la fuente"], changeType: "cambio", matchedPromotionId: existing.id, diff });
       }
+      continue;
+    }
+
+    if (twin) {
+      const have = twin.paymentMethods.map((m) => m.slug);
+      const missing = payload.paymentMethodSlugs.filter((s) => !have.includes(s));
+      if (!missing.length) {
+        await repo.markVerified(twin.id);
+        r.verified++;
+        continue;
+      }
+      const merged = { ...toPayload({ ...promotionToRaw(twin), paymentMethodSlugs: [...have, ...missing] }, source), sourceUrl: twin.sourceUrl };
+      await queue(merged, fingerprint(merged), {
+        flagReasons: [`Es la misma promo que “${twin.title}”: en vez de duplicarla, se le suma ${payload.wallet ?? payload.bank ?? missing.join(", ")} como medio de pago`],
+        changeType: "cambio",
+        matchedPromotionId: twin.id,
+        diff: { paymentMethodSlugs: { antes: have, despues: [...have, ...missing] } },
+      });
       continue;
     }
 

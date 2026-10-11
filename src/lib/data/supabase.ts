@@ -438,7 +438,8 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     },
     async addSourceRecords(sourceId, items) {
       for (let i = 0; i < items.length; i += 1000) {
-        const rows = items.slice(i, i + 1000).map((it) => ({ source_id: sourceId, key: it.key, priority: it.priority }));
+        // next_check_at en el pasado: quedan para leer en esta misma corrida (el default now() las dejaría para la siguiente).
+        const rows = items.slice(i, i + 1000).map((it) => ({ source_id: sourceId, key: it.key, priority: it.priority, next_check_at: new Date(0).toISOString() }));
         const { error } = await db.from("source_records").upsert(rows, { onConflict: "source_id,key", ignoreDuplicates: true });
         if (error) throw friendlyDbError(error);
       }

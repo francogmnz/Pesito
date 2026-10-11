@@ -85,6 +85,31 @@ describe("automatización", () => {
     expect(cambio.diff?.discountValue).toEqual({ antes: 20, despues: 10 });
   });
 
+  it("la misma promo en otra billetera no se duplica: se propone sumar el medio de pago", async () => {
+    const repo = createMemoryRepo();
+    const a = { ...oficial, config };
+    const b: Source = { ...autorizada, id: "src-otra", name: "Otra billetera", kind: "oficial", config };
+    const feed = async (src: Source, item: Record<string, unknown>) => processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([item])), { today });
+    await feed(a, feedItem());
+    const otra = feedItem({ id: "B9", title: "20% OFF en Glaciar pagando con Ualá", paymentMethodSlugs: ["uala"] });
+
+    expect(await feed(b, otra)).toMatchObject({ created: 0, flagged: 1 });
+    const [sub] = await repo.listSubmissions({ origin: "automatizacion", status: "pendiente" });
+    expect(sub).toMatchObject({ changeType: "cambio", diff: { paymentMethodSlugs: { antes: ["modo"], despues: ["modo", "uala"] } } });
+    expect(sub.payload).toMatchObject({ title: "20% en Heladería Glaciar", paymentMethodSlugs: ["modo", "uala"], externalId: "A1" });
+    // Mientras espera revisión no se vuelve a encolar.
+    expect((await feed(b, otra)).flagged).toBe(0);
+
+    // Aprobada: queda una sola promo con los dos medios de pago y las dos fuentes la dan por verificada.
+    await repo.updatePromotionFromPayload(sub.matchedPromotionId!, sub.payload, sub.fingerprint!);
+    expect(await feed(b, otra)).toMatchObject({ verified: 1, flagged: 0 });
+    expect(await feed(a, feedItem())).toMatchObject({ verified: 1, flagged: 0 });
+    const promos = await repo.listPromotions({ statuses: ["publicada"], limit: 1000 });
+    expect(promos.filter((p) => p.merchant.name === "Heladería Glaciar").map((p) => p.paymentMethods.map((m) => m.slug).sort())).toEqual([["modo", "uala"]]);
+    // Otro beneficio en el mismo comercio sí es otra promo.
+    expect(await feed(b, { ...otra, id: "B10", discountValue: 30 })).toMatchObject({ verified: 0, flagged: 1 });
+  });
+
   it("ignora promos vencidas y avisa si una promo desaparece del feed", async () => {
     const repo = createMemoryRepo();
     const src = { ...oficial, config };
