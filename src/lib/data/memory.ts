@@ -255,6 +255,22 @@ export function createMemoryRepo(): Repo {
     async listMerchants() {
       return clone(s().merchants);
     },
+    async updateMerchant(mid, patch) {
+      const st = s();
+      const i = st.merchants.findIndex((m) => m.id === mid);
+      if (i < 0) throw new Error("Comercio inexistente");
+      const next: Merchant = { ...st.merchants[i] };
+      if (patch.categorySlug !== undefined) next.categorySlug = patch.categorySlug;
+      if (patch.logoUrl !== undefined) next.logoUrl = patch.logoUrl;
+      if (patch.logoAuthorized !== undefined) next.logoAuthorized = patch.logoAuthorized;
+      st.merchants[i] = next;
+      for (const p of st.promotions) if (p.merchant.id === mid) p.merchant = next;
+      return clone(next);
+    },
+    async uploadMerchantLogo(_mid, bytes, contentType) {
+      // En demo no hay almacenamiento: el logo queda embebido como data URL.
+      return `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`;
+    },
 
     async listPromotions(f: PromotionFilter = {}) {
       const statuses = f.statuses ?? ["publicada"];

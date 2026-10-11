@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { hash53 } from "@/lib/domain/fingerprint";
+import { CATEGORY_ICON, genericMerchantIcon } from "@/lib/domain/labels";
+import { Icon } from "./icon";
 import type { Merchant, PaymentMethod } from "@/lib/domain/types";
 
 /** Logo: el carpincho + "Pesito" en letra redondeada. Con frase debajo si withSlogan. */
@@ -51,20 +53,43 @@ function initials(name: string) {
   return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 2)).toUpperCase();
 }
 
-/** Logo del comercio solo si su uso está autorizado; si no, iniciales. */
-export function MerchantAvatar({ merchant, size = 44 }: { merchant: Pick<Merchant, "name" | "logoUrl" | "logoAuthorized">; size?: number }) {
+/**
+ * Logo del comercio solo si su uso está autorizado. Si no: el ícono del rubro para
+ * servicios genéricos (colectivos, subte…) o las iniciales con un sello del rubro.
+ */
+export function MerchantAvatar({
+  merchant,
+  size = 44,
+}: {
+  merchant: Pick<Merchant, "name" | "logoUrl" | "logoAuthorized"> & { categorySlug?: string | null };
+  size?: number;
+}) {
   if (merchant.logoAuthorized && merchant.logoUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={merchant.logoUrl} alt={merchant.name} width={size} height={size} className="shrink-0 rounded-2xl bg-white object-contain" />;
+    return <img src={merchant.logoUrl} alt={merchant.name} width={size} height={size} className="shrink-0 rounded-2xl border border-linea bg-white object-contain p-0.5" style={{ width: size, height: size }} />;
+  }
+  const generic = genericMerchantIcon(merchant);
+  if (generic) {
+    return (
+      <span aria-hidden className="inline-grid shrink-0 place-items-center rounded-2xl bg-bosque text-lima" style={{ width: size, height: size }}>
+        <Icon name={generic} size={Math.round(size * 0.56)} />
+      </span>
+    );
   }
   const tone = AVATAR_TONES[parseInt(hash53(merchant.name).slice(-4), 36) % AVATAR_TONES.length];
+  const badge = size >= 34 && merchant.categorySlug ? CATEGORY_ICON[merchant.categorySlug] : null;
   return (
     <span
       aria-hidden
-      className="inline-grid shrink-0 place-items-center rounded-2xl font-extrabold tracking-tight"
+      className="relative inline-grid shrink-0 place-items-center rounded-2xl font-extrabold tracking-tight"
       style={{ width: size, height: size, background: tone.bg, color: tone.fg, fontSize: size * 0.36 }}
     >
       {initials(merchant.name)}
+      {badge && (
+        <span className="absolute -right-1 -bottom-1 grid place-items-center rounded-full border-2 border-superficie bg-lima text-bosque" style={{ width: size * 0.42, height: size * 0.42 }}>
+          <Icon name={badge} size={Math.round(size * 0.26)} />
+        </span>
+      )}
     </span>
   );
 }

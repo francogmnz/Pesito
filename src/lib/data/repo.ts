@@ -54,6 +54,12 @@ export interface AdminStats {
   inReview: number;
 }
 
+export interface MerchantPatch {
+  categorySlug?: string | null;
+  logoUrl?: string | null;
+  logoAuthorized?: boolean;
+}
+
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
 export interface Repo {
   readonly mode: "demo" | "supabase";
@@ -62,6 +68,10 @@ export interface Repo {
   listCategories(): Promise<Category[]>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
   listMerchants(): Promise<Merchant[]>;
+  /** Admin: rubro y logo del comercio. El logo solo se muestra con logoAuthorized. */
+  updateMerchant(id: string, patch: MerchantPatch): Promise<Merchant>;
+  /** Admin: sube el archivo del logo y devuelve su URL pública. */
+  uploadMerchantLogo(id: string, bytes: Uint8Array, contentType: string): Promise<string>;
 
   // Promociones (incluye cupones y cumpleaños)
   listPromotions(filter?: PromotionFilter): Promise<Promotion[]>;

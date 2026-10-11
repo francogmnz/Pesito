@@ -8,7 +8,7 @@ import { DetailRow, PageHeader, SampleBadge } from "@/components/ui";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { expiryLabel, isExpired, isExpiringSoon } from "@/lib/domain/coupons";
 import { formatDate } from "@/lib/domain/dates";
-import { capLabel, CHANNEL_LABEL, headline } from "@/lib/domain/labels";
+import { capLabel, headline, whereLabel } from "@/lib/domain/labels";
 import { formatARS } from "@/lib/domain/money";
 import { todayAR } from "@/lib/domain/dates";
 
@@ -87,7 +87,7 @@ export default async function CouponDetailPage({ params }: { params: Promise<{ i
         <DetailRow icon="device" label="Registro en otra plataforma">
           {c?.requiresExternalSignup ? `Sí: ${c.externalPlatform}` : "No hace falta"}
         </DetailRow>
-        <DetailRow icon="store" label="Dónde">{CHANNEL_LABEL[promo.channel]}</DetailRow>
+        <DetailRow icon="store" label="Dónde">{whereLabel(promo)}</DetailRow>
       </div>
 
       {promo.requirements.length > 0 && (

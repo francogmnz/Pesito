@@ -32,6 +32,8 @@ export const categories: Category[] = [
   { id: 8, slug: "tiendas-online", name: "Tiendas online", icon: "bag" },
   { id: 9, slug: "belleza", name: "Belleza", icon: "sparkle" },
   { id: 10, slug: "entretenimiento", name: "Entretenimiento", icon: "ticket" },
+  { id: 11, slug: "transporte", name: "Transporte", icon: "bus" },
+  { id: 12, slug: "educacion", name: "Educación", icon: "book" },
 ];
 
 const pm = (slug: string, name: string, kind: PaymentMethod["kind"], color: string): PaymentMethod => ({ id: `pm-${slug}`, slug, name, kind, color });

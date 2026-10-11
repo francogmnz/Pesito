@@ -13,10 +13,17 @@ const STATUS_TONE: Record<Submission["status"], string> = {
 
 const CHANGE_LABEL = { nueva: "Nueva", cambio: "Cambio", baja: "Baja" } as const;
 
-export function SubmissionRow({ s }: { s: Submission }) {
+export function SubmissionRow({ s, selectable = false }: { s: Submission; selectable?: boolean }) {
+  const canSelect = selectable && !s.publishedPromotionId;
   return (
-    <li>
-      <Link href={`/admin/revision/${s.id}`} className="flex items-center gap-3 p-3.5 hover:bg-crema/60">
+    <li className="flex items-center">
+      {selectable && (
+        <label className="grid self-stretch place-items-center pl-3.5">
+          <span className="sr-only">Marcar {s.payload.title}</span>
+          <input type="checkbox" name="ids" value={s.id} disabled={!canSelect} className="size-5 accent-[#5c8c3b]" />
+        </label>
+      )}
+      <Link href={`/admin/revision/${s.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3.5 hover:bg-crema/60">
         <span className={`grid size-10 shrink-0 place-items-center rounded-full ${s.origin === "usuario" ? "bg-lima-suave text-verde-oscuro" : "bg-bosque text-lima"}`} title={s.origin === "usuario" ? "Sugerida por una persona" : "Detectada por la automatización"}>
           <Icon name={s.origin === "usuario" ? "user" : "bolt"} size={19} />
         </span>

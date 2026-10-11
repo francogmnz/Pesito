@@ -20,6 +20,8 @@ const CATEGORY_NAME: Record<string, string> = {
   "tiendas-online": "Online",
   belleza: "Belleza",
   entretenimiento: "Entretenimiento",
+  transporte: "Transporte",
+  educacion: "Educación",
 };
 
 /** Tarjeta compacta de reintegro/descuento (inicio y catálogo). */

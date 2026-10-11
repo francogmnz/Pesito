@@ -53,7 +53,7 @@ export default async function ReviewDetail({ params }: { params: Promise<{ id: s
       </Link>
 
       <header className="flex flex-wrap items-center gap-3">
-        <MerchantAvatar merchant={{ name: sub.payload.merchantName || "?", logoUrl: null, logoAuthorized: false }} size={48} />
+        <MerchantAvatar merchant={{ name: sub.payload.merchantName || "?", logoUrl: null, logoAuthorized: false, categorySlug: sub.payload.categorySlug }} size={48} />
         <div className="min-w-0 flex-1">
           <h1 className="text-xl leading-tight font-bold">{sub.payload.title || "Sin título"}</h1>
           <p className="text-sm text-tinta-2">

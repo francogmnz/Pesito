@@ -76,7 +76,7 @@ export function parseUala(html: string, today: string): RawCandidate[] {
         conditions: truncate(
           [
             (s.promotionPayment ?? []).length ? `Medios: ${(s.promotionPayment as string[]).join(", ")}.` : null,
-            s.PromotionCashDate ? `Acreditación: ${String(s.PromotionCashDate).trim()}.` : null,
+            s.PromotionCashDate && !/^[-–\s]*$/.test(String(s.PromotionCashDate)) ? `Acreditación: ${String(s.PromotionCashDate).trim()}.` : null,
             s.promotionLegal ? String(s.promotionLegal) : null,
           ]
             .filter(Boolean)
