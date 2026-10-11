@@ -20,6 +20,12 @@ function authorized(request: Request): boolean {
  */
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  const summary = await runAllSources(await getServiceRepo(), { today: todayAR() });
-  return NextResponse.json(summary);
+  try {
+    const summary = await runAllSources(await getServiceRepo(), { today: todayAR() });
+    return NextResponse.json(summary);
+  } catch (e) {
+    // Quien llama ya mostró la clave: puede ver el motivo real para arreglarlo (por ejemplo, una variable que falta).
+    console.error("cron actualizar", e);
+    return NextResponse.json({ error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }, { status: 500 });
+  }
 }
