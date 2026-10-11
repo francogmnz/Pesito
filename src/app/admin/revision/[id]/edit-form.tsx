@@ -9,8 +9,33 @@ import { REQUIREMENTS } from "@/lib/domain/types";
 
 const num = (n: number | null) => (n == null ? "" : String(n));
 
-export function EditPayloadForm({ id, payload, categories, paymentMethods, readOnly }: { id: string; payload: PromoPayload; categories: Category[]; paymentMethods: PaymentMethod[]; readOnly: boolean }) {
-  const [state, action, pending] = useActionState<AdminState, FormData>(saveSubmissionEdits.bind(null, id), null);
+type SaveAction = (prev: AdminState, form: FormData) => Promise<AdminState>;
+
+/**
+ * Formulario de datos de una promo. Por defecto corrige una sugerencia de la cola;
+ * con `save` edita una promo ya publicada o carga una nueva (panel → Promos).
+ */
+export function EditPayloadForm({
+  id,
+  payload,
+  categories,
+  paymentMethods,
+  readOnly,
+  save,
+  saveLabel = "Guardar correcciones",
+  lockMerchant = false,
+}: {
+  id: string;
+  payload: PromoPayload;
+  categories: Category[];
+  paymentMethods: PaymentMethod[];
+  readOnly: boolean;
+  save?: SaveAction;
+  saveLabel?: string;
+  /** En una promo publicada el comercio y su rubro se cambian desde Comercios. */
+  lockMerchant?: boolean;
+}) {
+  const [state, action, pending] = useActionState<AdminState, FormData>(save ?? saveSubmissionEdits.bind(null, id), null);
   const [kind, setKind] = useState(payload.kind);
   const [dk, setDk] = useState(payload.discountKind);
   const [redemption, setRedemption] = useState(payload.coupon?.redemption ?? "codigo");
@@ -41,7 +66,7 @@ export function EditPayloadForm({ id, payload, categories, paymentMethods, readO
         </div>
         <div className="grid grid-cols-2 gap-3">
           <L label="Comercio">
-            <input name="merchantName" defaultValue={payload.merchantName} required maxLength={80} className="campo" />
+            <input name="merchantName" defaultValue={payload.merchantName} required maxLength={80} readOnly={lockMerchant} className="campo read-only:bg-crema" />
           </L>
           <L label="Categoría">
             <select name="categorySlug" defaultValue={payload.categorySlug ?? ""} className="campo">
@@ -234,7 +259,7 @@ export function EditPayloadForm({ id, payload, categories, paymentMethods, readO
       )}
       {!readOnly && (
         <button className="btn-secundario" disabled={pending}>
-          {pending ? "Guardando…" : "Guardar correcciones"}
+          {pending ? "Guardando…" : saveLabel}
         </button>
       )}
     </form>

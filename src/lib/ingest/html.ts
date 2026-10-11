@@ -144,6 +144,40 @@ export function parseDateRange(s: string | null | undefined, today: string): { f
   return { from: null, until: single ? parseSpanishDate(single[1], today) : parseSpanishDate(t, today) };
 }
 
+const VALIDITY = /v[aá]lid[ao]s?\b|promoci[oó]n vigente|vigencia de la promoci[oó]n/gi;
+const MONTH_RE = Object.keys(MONTH_INDEX).join("|");
+const lastDay = (y: number, month: number) => new Date(Date.UTC(y, month, 0)).getUTCDate();
+
+/**
+ * Vigencia dentro de un texto legal. Busca la frase que la anuncia ("Válida desde el 28/09/2026 hasta el 31/10/2026",
+ * "válida del 1° al 31 de octubre de 2026", "los martes 6, 13 y 27 de octubre del 2026", "los domingos de octubre 2026").
+ * Una sola fecha después de "desde" es el inicio, no el fin.
+ */
+export function parseValidity(text: string | null | undefined, today: string): { from: string | null; until: string | null } {
+  const legal = text ?? "";
+  for (const hit of legal.matchAll(VALIDITY)) {
+    const seg = legal.slice(hit.index, hit.index + 220).replace(/[°º]/g, "");
+    const dates = [...norm(seg).matchAll(new RegExp(`\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}|\\d{1,2}\\s+de\\s+(?:${MONTH_RE})\\s+(?:de|del)\\s+\\d{4}`, "g"))];
+    const iso = dates.map((m) => parseSpanishDate(m[0], today));
+    if (iso.length >= 2 && iso[0] && iso[1] && iso[0] <= iso[1]) return { from: iso[0], until: iso[1] };
+    if (iso.length === 1 && iso[0]) {
+      const before = norm(seg).slice(0, dates[0].index);
+      return /desde\s+(el\s+)?$/.test(before) && !/hasta/.test(norm(seg)) ? { from: iso[0], until: null } : { from: null, until: iso[0] };
+    }
+    const range = parseDateRange(seg, today);
+    if (range.until) return range;
+    // Mes entero: "los viernes, sábados y domingos de octubre 2026".
+    const m = norm(seg).match(new RegExp(`(?:de|del mes de)\\s+(${MONTH_RE})\\s+(?:de\\s+|del\\s+)?(\\d{4})`));
+    if (m) {
+      const month = MONTH_INDEX[m[1]];
+      const y = Number(m[2]);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return { from: `${y}-${pad(month)}-01`, until: `${y}-${pad(month)}-${pad(lastDay(y, month))}` };
+    }
+  }
+  return { from: null, until: null };
+}
+
 /** Código de cupón mencionado en el texto: «ingresando el código 5MASTER», «cupón “RappiProUala”». */
 export function findCouponCode(s: string | null | undefined): string | null {
   const re = /(?:c[oó]digo|cup[oó]n)\s*(?:de descuento\s*)?[“"'«]?\s*([A-Za-z0-9][A-Za-z0-9_-]{2,39})/gi;

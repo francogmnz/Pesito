@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -98,6 +98,7 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 | PedidosYa · `pedidosya.com.ar/promotions-section/promotions` | `pedidosya` | JSON embebido: banco, %, reintegro o descuento, días. No trae tope ni vigencia |
 | Mercado Pago · `promociones.mercadopago.com.ar` | `mercadopago` | HTML de WordPress: solo promos con % (las de cuotas o 2x1 se ignoran por ahora) |
 | Prex · `prexcard.com.ar/promociones` | `prex` | Listado (`__NEXT_DATA__`) + la página de cada promo (unas 15, con pausa): %, tope, mínimo, días, vigencia y código salen del texto y los términos. Lo que no tiene % (transferencias sin comisión, asistencia sin costo) no se carga. Si una página falla, la corrida entera da error |
+| Farmaonline · `farmaonline.com/promociones-bancarias` | `farmaonline` | Tarjetas ya armadas en el HTML (VTEX): titular + texto legal. El banco es un logo, así que se deduce del legal (`ingest/payment-names.ts`); tope, mínimo, días y vigencia salen del texto. Las de solo cuotas se saltean |
 | MODO · `modo.com.ar/promos/{slug}` | `modo` | Por tandas: sitemap + página pública de cada promo (datos embebidos del App Router). Ver abajo |
 
 - Antes de leer, se consulta el `robots.txt` del sitio; si prohíbe la ruta, la corrida falla con ese motivo.
@@ -105,6 +106,10 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Lo que el equipo rechaza no se vuelve a encolar en las corridas siguientes.
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
+
+### Panel → Promos
+
+`/admin/promos` lista lo ya cargado (publicadas, pausadas, vencidas, archivadas) con buscador; `/admin/promos/[id]` edita con el mismo formulario de Revisión (`EditPayloadForm` con `save`) y cambia el estado; `/admin/promos/nueva` carga y publica a mano. Archivar no borra. El identificador de la fuente (`external_id`) no se edita: es lo que evita que el lector la vuelva a cargar.
 
 ### La misma promo en varias billeteras
 
