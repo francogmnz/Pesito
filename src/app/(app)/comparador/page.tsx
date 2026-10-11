@@ -31,7 +31,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     <div>
       <PageHeader title="Comparar medios de pago" back="/" subtitle="Mismo comercio, distintas opciones. Elegí la que más te conviene." />
       {!merchant ? (
-        <EmptyState title="Todavía no hay promos para comparar" text="Cuando haya promos publicadas vas a poder compararlas acá." pose="camina" />
+        <EmptyState title="Todavía no hay promos para comparar" text="Cuando haya promos publicadas vas a poder compararlas acá." pose="buscando" />
       ) : (
         <>
           <form className="tarjeta grid gap-3 p-4" action="/comparador">

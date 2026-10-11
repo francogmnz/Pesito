@@ -62,7 +62,7 @@ export default async function BirthdayPage({ searchParams }: { searchParams: SP 
         ) : (
           <p className="mt-1 text-sm font-medium text-bosque/80">Regalos, descuentos y cupones de comercios argentinos para tu cumpleaños.</p>
         )}
-        <Mascot pose="corazon" width={112} eager className="absolute right-2 bottom-0" />
+        <Mascot pose="cumple" width={118} eager className="absolute right-2 bottom-0" />
       </section>
 
       <section className="tarjeta mt-4 p-4">

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource/baloo-2/800.css";
 
 /* Identidad Pesito: paleta oficial + tonos derivados para texto secundario y bordes. */
 @theme {
@@ -19,6 +20,7 @@
   --color-peligro: #b42318;
   --color-peligro-suave: #fde8e6;
 
+  --font-marca: "Baloo 2", "Inter Variable", ui-rounded, system-ui, sans-serif;
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --radius-tarjeta: 22px;

@@ -93,7 +93,7 @@ export default async function PromosPage({ searchParams }: { searchParams: SP })
         <EmptyState
           title="No encontramos promos"
           text="Probá con otra búsqueda o sacá algún filtro. Si conocés una promo que falta, mandala."
-          pose="camina"
+          pose="buscando"
           action={
             <Link href="/sugerir" className="btn-primario">
               <Icon name="plus" size={18} /> Sugerí una promo

@@ -28,7 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <header className="border-b border-linea bg-superficie">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
           <Link href="/admin" aria-label="Panel">
-            <Logo size="sm" withSlogan={false} />
+            <Logo size="sm" />
           </Link>
           <span className="chip bg-bosque text-lima">Panel</span>
           {repo.mode === "demo" && <span className="chip bg-alerta-suave text-alerta">Demo</span>}
