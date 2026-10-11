@@ -1,0 +1,138 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { createMemoryRepo, resetDemoStore } from "@/lib/data/memory";
+import { parseExtraction } from "@/lib/ai/extract";
+import { todayAR, addDaysISO } from "@/lib/domain/dates";
+import type { Source } from "@/lib/domain/types";
+import { jsonFeedAdapter } from "./adapters";
+import { processCandidates } from "./process";
+
+const today = todayAR();
+const oficial: Source = { id: "src-demo", name: "Fuente de ejemplo", url: "https://feed.example.com/promos.json", kind: "oficial", active: true, adapter: "json-feed", config: {}, autoPublish: true, lastRunAt: null };
+const autorizada: Source = { ...oficial, kind: "autorizada", autoPublish: false };
+
+const feedItem = (over: Record<string, unknown> = {}) => ({
+  id: "A1",
+  comercio: "Heladería Glaciar",
+  title: "20% en Heladería Glaciar",
+  kind: "descuento",
+  discountKind: "porcentaje",
+  discountValue: 20,
+  capAmount: 3000,
+  validUntil: addDaysISO(today, 20),
+  paymentMethodSlugs: ["modo"],
+  ...over,
+});
+const fakeFetch = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
+const config = { fieldMap: { externalId: "id", merchantName: "comercio" } };
+
+describe("automatización", () => {
+  beforeEach(() => resetDemoStore());
+
+  it("lee un feed autorizado con mapeo de campos y descarta basura", async () => {
+    const list = await jsonFeedAdapter.fetchCandidates({ ...oficial, config }, fakeFetch({ promos: [feedItem(), null, 42, { comercio: "sin id ni título" }] }));
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ externalId: "A1", merchantName: "Heladería Glaciar", discountValue: 20 });
+  });
+
+  it("no lee URLs inseguras", async () => {
+    await expect(jsonFeedAdapter.fetchCandidates({ ...oficial, url: "http://10.0.0.1/feed" }, fakeFetch([]))).rejects.toThrow();
+  });
+
+  it("fuente oficial con publicación automática: publica lo completo", async () => {
+    const repo = createMemoryRepo();
+    const cands = await jsonFeedAdapter.fetchCandidates({ ...oficial, config }, fakeFetch([feedItem()]));
+    const r = await processCandidates(repo, oficial, cands, { today });
+    expect(r).toMatchObject({ created: 1, flagged: 0 });
+    expect((await repo.listPromotions({ q: "glaciar" }))[0].sourceUrl).toBe(oficial.url);
+  });
+
+  it("fuente autorizada: todo va a revisión, nada se publica solo", async () => {
+    const repo = createMemoryRepo();
+    const cands = await jsonFeedAdapter.fetchCandidates({ ...autorizada, config }, fakeFetch([feedItem()]));
+    const r = await processCandidates(repo, autorizada, cands, { today });
+    expect(r).toMatchObject({ created: 0, flagged: 1 });
+    expect(await repo.listPromotions({ q: "glaciar" })).toHaveLength(0);
+    const sub = (await repo.listSubmissions({ origin: "automatizacion", status: "pendiente" })).find((s) => s.payload.merchantName === "Heladería Glaciar")!;
+    expect(sub.flagReasons).toContain("La fuente no es oficial: verificar");
+  });
+
+  it("datos dudosos van a revisión aunque la fuente sea oficial", async () => {
+    const repo = createMemoryRepo();
+    const cands = await jsonFeedAdapter.fetchCandidates({ ...oficial, config }, fakeFetch([feedItem({ paymentMethodSlugs: [], discountValue: 150 })]));
+    const r = await processCandidates(repo, oficial, cands, { today });
+    expect(r.flagged).toBe(1);
+    expect(r.created).toBe(0);
+  });
+
+  it("detecta duplicados, verifica sin cambios, aplica extensiones y manda cambios a revisión", async () => {
+    const repo = createMemoryRepo();
+    const src = { ...oficial, config };
+    await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem()])), { today });
+
+    // Misma promo otra vez: se verifica, no se duplica.
+    let r = await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem()])), { today });
+    expect(r).toMatchObject({ verified: 1, created: 0, flagged: 0 });
+
+    // Extienden la vigencia: cambio menor, se aplica solo.
+    r = await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem({ validUntil: addDaysISO(today, 50) })])), { today });
+    expect(r.updated).toBe(1);
+    expect((await repo.listPromotions({ q: "glaciar" }))[0].validUntil).toBe(addDaysISO(today, 50));
+
+    // Bajan el porcentaje: va a revisión con el detalle.
+    r = await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem({ validUntil: addDaysISO(today, 50), discountValue: 10 })])), { today });
+    expect(r.flagged).toBe(1);
+    const cambio = (await repo.listSubmissions({ status: "pendiente" })).find((s) => s.changeType === "cambio")!;
+    expect(cambio.diff?.discountValue).toEqual({ antes: 20, despues: 10 });
+  });
+
+  it("ignora promos vencidas y avisa si una promo desaparece del feed", async () => {
+    const repo = createMemoryRepo();
+    const src = { ...oficial, config };
+    await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem()])), { today });
+    const r = await processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([feedItem({ id: "B2", comercio: "Otra", title: "Vieja", validUntil: addDaysISO(today, -1) })])), { today });
+    expect(r.skippedExpired).toBe(1);
+    expect((await repo.listSubmissions({ status: "pendiente" })).some((s) => s.changeType === "baja" && s.payload.merchantName === "Heladería Glaciar")).toBe(true);
+  });
+
+  it("vence promos terminadas", async () => {
+    const repo = createMemoryRepo();
+    expect(await repo.expirePromotions(addDaysISO(today, 100))).toBeGreaterThan(5);
+  });
+});
+
+describe("lectura con IA", () => {
+  it("valida campo por campo y descarta lo inventado o inseguro", () => {
+    const x = parseExtraction(
+      'Acá va: {"merchantName":"Farmacia Sol","discountValue":15,"couponCode":"BIEN VENIDA","validUntil":"2026-13-01","sourceUrl":"http://farmacia.com","days":[1,9],"confidence":0.8}',
+    );
+    expect(x.merchantName).toBe("Farmacia Sol");
+    expect(x.discountValue).toBe(15);
+    expect(x.couponCode).toBeNull();
+    expect(x.validUntil).toBeNull();
+    expect(x.sourceUrl).toBeNull();
+    expect(x.days).toBeNull();
+    expect(x.confidence).toBe(0.8);
+  });
+  it("tolera respuestas que no son JSON", () => {
+    expect(parseExtraction("no pude leer nada").merchantName).toBeNull();
+  });
+});
+
+describe("límites y reglas en modo demo (iguales a la base)", () => {
+  beforeEach(() => resetDemoStore());
+  it("máximo 5 sugerencias por día por persona y sin repetir", async () => {
+    const repo = createMemoryRepo();
+    const payload = (await repo.listSubmissions())[0].payload;
+    for (let i = 0; i < 4; i++) await repo.createSubmission({ origin: "usuario", payload, fingerprint: `fp-${i}`, submittedBy: "demo-usuario" });
+    // ya tenía 1 de hoy en los datos de ejemplo → 5
+    await expect(repo.createSubmission({ origin: "usuario", payload, fingerprint: "fp-x", submittedBy: "demo-usuario" })).rejects.toThrow("límite");
+    await expect(repo.createSubmission({ origin: "usuario", payload, fingerprint: "fp-0", submittedBy: "demo-admin" })).resolves.toBeTruthy();
+    await expect(repo.createSubmission({ origin: "usuario", payload, fingerprint: "fp-0", submittedBy: "demo-admin" })).rejects.toThrow("Ya nos mandaste");
+  });
+  it("tres reportes de personas distintas pausan el cupón", async () => {
+    const repo = createMemoryRepo();
+    for (const u of ["a", "b", "c"]) await repo.createReport(u, "c-ceibo", "codigo_invalido", null);
+    expect(await repo.getPromotion("c-ceibo")).toBeNull();
+    expect((await repo.getPromotion("c-ceibo", { includeUnpublished: true }))!.status).toBe("en_revision");
+  });
+});
