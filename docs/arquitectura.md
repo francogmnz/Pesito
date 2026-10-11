@@ -106,6 +106,10 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
 
+### Panel → Promos
+
+`/admin/promos` lista lo ya cargado (publicadas, pausadas, vencidas, archivadas) con buscador; `/admin/promos/[id]` edita con el mismo formulario de Revisión (`EditPayloadForm` con `save`) y cambia el estado; `/admin/promos/nueva` carga y publica a mano. Archivar no borra. El identificador de la fuente (`external_id`) no se edita: es lo que evita que el lector la vuelva a cargar.
+
 ### La misma promo en varias billeteras
 
 Hay promos que varias fuentes publican por separado (un código de Mastercard que sirve con Ualá y con Prex). Si un candidato nuevo coincide con una promo publicada en comercio, beneficio, tope, mínimo, días, vencimiento y código (`sameBenefit` en `ingest/process.ts`), no se crea otra: va a revisión un cambio que le suma el medio de pago a la existente. Una vez aprobado, las dos fuentes la dan por verificada. La baja la sigue detectando solo la fuente que la creó.
