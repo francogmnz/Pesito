@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo, Mascot } from "@/components/brand";
 import { Icon } from "@/components/icon";
 import { CouponCard, PromoCard } from "@/components/promo-cards";
-import { FinePrint, SectionTitle } from "@/components/ui";
+import { FinePrint, SectionTitle, SupportCard } from "@/components/ui";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { daysUntilBirthday } from "@/lib/domain/birthday";
 import { availability } from "@/lib/domain/calc";
@@ -152,6 +152,10 @@ export default async function HomePage() {
         </span>
         <Icon name="chevronRight" className="text-tenue" />
       </Link>
+
+      <div className="mt-4">
+        <SupportCard compact />
+      </div>
 
       <FinePrint>
         Pesito reúne promociones, cupones y precios publicados por bancos, billeteras y comercios en sus sitios oficiales. Pueden cambiar o terminar sin aviso: antes de comprar, verificá las condiciones en la fuente, que está enlazada en cada promo. Los montos de reintegro y ahorro son estimaciones. Pesito no vende productos ni representa a las marcas mencionadas, que pertenecen a sus respectivos dueños.

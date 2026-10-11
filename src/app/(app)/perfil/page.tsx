@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Mascot, PaymentDot } from "@/components/brand";
 import { Icon } from "@/components/icon";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader, SupportCard } from "@/components/ui";
 import { signOut } from "@/app/actions";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { MONTHS } from "@/lib/domain/dates";
@@ -133,6 +133,10 @@ export default async function ProfilePage() {
         <h2 className="mb-2 font-bold">Tu nombre</h2>
         <NameForm current={user.name} />
       </section>
+
+      <div className="mt-6">
+        <SupportCard />
+      </div>
 
       <form action={signOut} className="mt-4">
         <button className="btn-secundario w-full">
