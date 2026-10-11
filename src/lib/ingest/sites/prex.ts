@@ -67,6 +67,7 @@ export function parsePrexPromo(item: PrexItem, html: string, today: string): Raw
   const legal = cut < 0 ? text : text.slice(cut).replace(/^t[eé]rminos y condiciones\s*/i, "");
   const all = `${intro}\n${legal}`;
   const flags: string[] = [];
+  const notes: string[] = [];
 
   const title = oneLine(benefit.promotion_title) || item.title;
   const merchant = merchantOf({ ...item, title });
@@ -80,8 +81,8 @@ export function parsePrexPromo(item: PrexItem, html: string, today: string): Raw
   const cap = parseMoneyIn(capText);
   // "Tope: $15.000 por usuario" no dice cada cuánto: se toma como tope de toda la promo.
   const capHasPeriod = /seman|mensual|por mes|al mes|diari|por d[ií]a|por (viaje|compra|pedido|transacci)/i.test(capText ?? "");
-  if (cap && !capHasPeriod) flags.push("El tope no aclara el período: se cargó como tope de toda la promo.");
-  if (!cap && !/sin tope/i.test(all)) flags.push("La página no menciona tope: confirmar que no tiene.");
+  if (cap && !capHasPeriod) notes.push("El tope no aclara el período: se cargó como tope de toda la promo.");
+  if (!cap && !/sin tope/i.test(all)) notes.push("La página no menciona tope.");
   const minText = all.match(/(?:m[ií]nimo de compra|compra m[ií]nima|a partir de)[^$\n]{0,60}\$\s?[\d.]+/i)?.[0] ?? null;
 
   const { from, until } = parseValidity(legal, today);
@@ -93,6 +94,7 @@ export function parsePrexPromo(item: PrexItem, html: string, today: string): Raw
   return {
     externalId: `prex:${item.id}`,
     ...(flags.length ? { flags } : {}),
+    ...(notes.length ? { notes } : {}),
     kind: code ? "cupon" : /reintegro/i.test(`${title} ${intro}`) ? "reintegro" : "descuento",
     audience: newOnly ? "nuevos_clientes" : "todos",
     merchantName: merchant.name,

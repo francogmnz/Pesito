@@ -135,7 +135,11 @@ describe("MODO", () => {
   it("avisa cuando parece ser para un segmento de clientes", () => {
     const c = page("segmento").candidate!;
     expect(c).toMatchObject({ paymentMethodSlugs: ["macro"], daysOfWeek: null, channel: "local", capAmount: 20000, capPeriod: "mes" });
-    expect(c.flags!.some((f) => f.includes("segmento"))).toBe(true);
+    // El segmento queda escrito en la promo: es una nota, no frena la publicación.
+    expect(c.title).toContain("· Preferencial");
+    expect(c.conditions).toContain("Solo para clientes Preferencial.");
+    expect(c.notes!.some((f) => f.includes("segmento"))).toBe(true);
+    expect(c.flags).toEqual([]);
   });
 
   it("que MODO diga “active” no alcanza: manda la vigencia", () => {
@@ -254,7 +258,8 @@ describe("Prex", () => {
     const c = promo("temu");
     expect(c).toMatchObject({ kind: "cupon", audience: "nuevos_clientes", capAmount: 15000, capPeriod: "vigencia", minPurchase: 15000, validUntil: "2026-10-31", channel: "online" });
     expect(c.coupon).toMatchObject({ code: "PREX26", newCustomersOnly: true });
-    expect(c.flags?.some((f) => f.startsWith("El tope no aclara"))).toBe(true);
+    expect(c.notes?.some((f) => f.startsWith("El tope no aclara"))).toBe(true);
+    expect(c.flags).toBeUndefined();
   });
 
   const src: Source = { id: "src-prex", name: "Prex", url: "https://www.prexcard.com.ar/promociones", kind: "oficial", active: true, adapter: "prex", config: { delayMs: 0 }, autoPublish: false, lastRunAt: null };
@@ -290,7 +295,7 @@ describe("Farmaonline", () => {
   const by = (id: string) => list.find((c) => c.externalId === id)!;
 
   it("saltea las tarjetas de solo cuotas y lee el resto", () => {
-    expect(list.map((c) => c.externalId)).toEqual(["farmaonline:modo:20:2", "farmaonline:mercado-pago:20:24", "farmaonline:amex:10:5", "farmaonline:cabal+credicoop:30:2", "farmaonline:x:20:todos:onsale"]);
+    expect(list.map((c) => c.externalId)).toEqual(["farmaonline:modo:20:2", "farmaonline:mercado-pago:20:24", "farmaonline:amex:10:5", "farmaonline:credicoop:30:2", "farmaonline:x:20:todos:onsale"]);
     expect(list.every((c) => c.merchantName === "Farmaonline" && c.categorySlug === "farmacias" && c.channel === "online")).toBe(true);
   });
 
@@ -306,10 +311,18 @@ describe("Farmaonline", () => {
   it("avisa lo dudoso: grupo de clientes, tope sin período, varios medios, sin fecha de fin", () => {
     const mp = by("farmaonline:mercado-pago:20:24");
     expect(mp).toMatchObject({ paymentMethodSlugs: ["mercado-pago"], capAmount: 16000, capPeriod: "vigencia", minPurchase: 80000, daysOfWeek: [2, 4] });
-    expect(mp.flags).toHaveLength(2);
-    const cabal = by("farmaonline:cabal+credicoop:30:2");
+    expect(mp.audience).toBe("nuevos_clientes");
+    expect(mp.flags).toBeUndefined();
+    expect(mp.notes).toHaveLength(2);
+    const cabal = by("farmaonline:credicoop:30:2");
     expect(cabal).toMatchObject({ validFrom: "2025-11-01", validUntil: null, capPeriod: "semana" });
-    expect(cabal.flags!.some((f) => f.startsWith("Aparecen varios medios de pago"))).toBe(true);
+    expect(cabal.paymentMethodSlugs).toEqual(["credicoop"]);
+    expect(cabal.flags).toEqual(["No se encontró hasta cuándo vale en el texto legal."]);
+  });
+
+  it("el titular no arrastra restos de HTML", () => {
+    expect(list.some((c) => /[<>]|farmaonline-store/.test(`${c.title} ${c.summary}`))).toBe(false);
+    expect(by("farmaonline:mercado-pago:20:24").summary).toBe("20% de descuento en compras mayores a $80.000 los martes y jueves");
   });
 
   it("un cupón de la tienda no necesita medio de pago", () => {

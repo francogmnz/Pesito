@@ -1,0 +1,31 @@
+# Actualiza las promos cada media hora llamando a la misma tarea que corre Vercel una vez por día.
+# Hace falta el secreto CRON_SECRET (Settings → Secrets and variables → Actions), con el mismo valor que en Vercel.
+# Sin el secreto no hace nada.
+name: Actualizar promos
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: actualizar-promos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Llamar a la actualización
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PESITO_URL: ${{ vars.PESITO_URL || 'https://pesito-phi.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta el secreto CRON_SECRET: no se hace nada."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 330 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$PESITO_URL/api/cron/actualizar"

@@ -123,6 +123,8 @@ export interface Repo {
   updatePromotionFromPayload(id: string, payload: PromoPayload, fingerprint: string): Promise<void>;
   setPromotionStatus(id: string, status: PromoStatus, actorId: string | null, note?: string | null): Promise<void>;
   markVerified(id: string): Promise<void>;
+  /** Marca que la promo fue corregida a mano: los cambios de la fuente vuelven a pasar por revisión. */
+  markManualEdit(id: string): Promise<void>;
   expirePromotions(today: string): Promise<number>;
 
   // Fuentes y automatización

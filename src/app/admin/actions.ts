@@ -11,6 +11,7 @@ import { payloadFromForm } from "@/lib/domain/payload-form";
 import type { PromoStatus, Submission } from "@/lib/domain/types";
 import type { MerchantPatch, Repo } from "@/lib/data/repo";
 import { payloadSchema, publishProblems, sniffImageType } from "@/lib/domain/validation";
+import { isBlocking } from "@/lib/ingest/process";
 import { runAllSources } from "@/lib/ingest/run";
 
 export type AdminState = { ok: boolean; message: string; problems?: string[] } | null;
@@ -136,6 +137,8 @@ export async function bulkModerate(_: AdminState, form: FormData): Promise<Admin
   const note = String(form.get("note") ?? "").trim().slice(0, 1000) || null;
   if (op === "rechazar" && !note) return { ok: false, message: "Escribí el motivo del rechazo: lo ven quienes las enviaron." };
 
+  // Filtrando la cola por un motivo, la persona ya vio el aviso: puede publicar ese grupo entero.
+  const allowFlagged = form.get("conAvisos") === "1";
   const repo = await getRepo();
   let done = 0;
   let flagged = 0;
@@ -160,7 +163,7 @@ export async function bulkModerate(_: AdminState, form: FormData): Promise<Admin
         continue;
       }
       // Las nuevas con avisos no se publican en lote: hay que abrirlas y mirar el aviso.
-      if (sub.changeType === "nueva" && sub.status !== "aprobada" && sub.flagReasons.length) {
+      if (sub.changeType === "nueva" && sub.status !== "aprobada" && sub.flagReasons.some(isBlocking) && !allowFlagged) {
         flagged++;
         continue;
       }
@@ -208,6 +211,7 @@ export async function savePromotion(id: string, _: AdminState, form: FormData): 
   if (problems.length) return { ok: false, message: "Corregí esto antes de guardar:", problems };
   try {
     await repo.updatePromotionFromPayload(id, payload, fingerprint(payload));
+    await repo.markManualEdit(id);
   } catch (e) {
     return fail(e);
   }
@@ -276,7 +280,7 @@ export async function runAutomationNow(): Promise<AdminState> {
     }
     return {
       ok: result.errors.length < result.sources,
-      message: `Listo: ${result.sources} fuentes, ${result.created} nuevas, ${result.updated} actualizadas, ${result.flagged} a revisión, ${result.expired} vencidas.`,
+      message: `Listo: ${result.sources} fuentes. Publicadas solas: ${result.created} nuevas y ${result.updated} actualizadas. Sin cambios: ${result.verified}. Para revisar: ${result.flagged}. Descartadas (vencidas o sin descuento): ${result.discarded}. Dadas por vencidas: ${result.expired}.`,
       problems: result.errors.length ? result.errors : undefined,
     };
   } catch (e) {

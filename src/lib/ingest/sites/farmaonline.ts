@@ -22,13 +22,14 @@ export function parseFarmaonline(html: string, today: string): RawCandidate[] {
   const seen = new Map<string, number>();
 
   for (const card of cards) {
-    const head = oneLine(stripTags(card.split(/promocard__container_arrow_down/)[0].replace(/^[\s\S]*?promocard__container_card_text[^>]*>/, "")));
+    const head = oneLine(stripTags(card.split(/<span[^>]*promocard__container_arrow_down/)[0].replace(/^[\s\S]*?promocard__container_card_text[^>]*>/, "")));
     const body = (card.split(/promocard__container_disclosure_content[^"]*">/)[1] ?? "").split(/<div class="[^"]*(?:promocardContainer|flex-layout|vtex-rich-text)/)[0];
     const legal = oneLine(stripTags(body));
     const pct = parsePercent(head);
     if (pct == null || !legal) continue; // solo cuotas
 
     const flags: string[] = [];
+    const notes: string[] = [];
     if (/\bhasta\s+\d{1,3}\s*%/i.test(head)) flags.push("El porcentaje es «hasta»: puede ser menor según el producto.");
     if ((head.match(/\d{1,3}\s*%/g) ?? []).length > 1) flags.push("El titular tiene más de un porcentaje: revisar cuál corresponde.");
 
@@ -42,17 +43,21 @@ export function parseFarmaonline(html: string, today: string): RawCandidate[] {
     const pay = named[0]?.slug === "amex" ? [named[0]] : manyBanks ? (viaModo ? [{ slug: "modo", name: "MODO" }] : []) : entities.length ? entities : viaModo ? [{ slug: "modo", name: "MODO" }] : named.filter((p) => p.network);
     const code = findCouponCode(legal);
     if (!pay.length && !code) flags.push("No se reconoció el medio de pago en el texto legal.");
-    if (pay.length > 1) flags.push(`Aparecen varios medios de pago (${pay.map((p) => p.name).join(", ")}): verificar.`);
+    // Varios bancos nombrados uno por uno ("emitidas por Banco Entre Ríos, San Juan…") es una promo compartida; una mezcla rara se revisa.
+    if (pay.length > 1 && pay.every((p) => p.slug) && pay.length <= 5) notes.push(`Vale con varios bancos: ${pay.map((p) => p.name).join(", ")}.`);
+    else if (pay.length > 1) flags.push(`Aparecen varios medios de pago (${pay.map((p) => p.name).join(", ")}): verificar.`);
     const unknown = pay.filter((p) => !p.slug);
     if (unknown.length) flags.push(`${unknown.map((p) => p.name).join(", ")} no es un medio de pago del catálogo (es un club de beneficios): revisar cómo cargarla.`);
-    const segment = legal.match(/jubilad[oa]s?|exclusivo para (socios|usuarios|clientes)[^.,]{0,40}|solo para socios[^.,]{0,40}|paquete de productos/i);
+    const firstPurchase = /primera compra/i.test(legal);
+    if (firstPurchase) notes.push("Es solo para la primera compra: quedó como promo para clientes nuevos.");
+    const segment = legal.match(/jubilad[oa]s?|exclusivo para (socios|usuarios)[^.,]{0,40}|exclusivo para clientes con[^.,]{0,40}|solo para socios[^.,]{0,40}|paquete de productos/i);
     if (segment) flags.push(`Puede ser solo para un grupo de clientes (“${segment[0]}”).`);
 
     const capText = `${head}. ${legal}`.match(/tope[^$.]{0,40}\$\s?[\d.]+[^.]{0,50}/i)?.[0] ?? null;
     const cap = parseMoneyIn(capText);
     const capHasPeriod = /seman|mensual|por mes|al mes|diari|por d[ií]a|por (viaje|compra|pedido|transacci)|por promoci/i.test(capText ?? "");
-    if (cap && !capHasPeriod) flags.push("El tope no aclara el período: se cargó como tope de toda la promo.");
-    if (!cap && !/sin tope/i.test(legal)) flags.push("La página no menciona tope: confirmar que no tiene.");
+    if (cap && !capHasPeriod) notes.push("El tope no aclara el período: se cargó como tope de toda la promo.");
+    if (!cap && !/sin tope/i.test(legal)) notes.push("La página no menciona tope.");
     const minText = `${head}. ${legal}`.match(/compras? (?:mayor(?:es)?|superior(?:es)?|iguales)[^$.]{0,25}\$\s?[\d.]+/i)?.[0] ?? null;
 
     const { from, until } = parseValidity(legal, today);
@@ -73,8 +78,9 @@ export function parseFarmaonline(html: string, today: string): RawCandidate[] {
       // Sin identificador propio: medio de pago + porcentaje + días. Si cambian tope o fechas, sigue siendo la misma promo.
       externalId: `farmaonline:${key}${n > 1 ? `:${n}` : ""}`.toLowerCase().replace(/\s+/g, "-").slice(0, 120),
       ...(flags.length ? { flags } : {}),
+      ...(notes.length ? { notes } : {}),
       kind: code ? "cupon" : reintegro ? "reintegro" : "descuento",
-      audience: "todos",
+      audience: firstPurchase ? "nuevos_clientes" : "todos",
       merchantName: "Farmaonline",
       categorySlug: "farmacias",
       title: truncate(`${pct}% de ${reintegro ? "reintegro" : "descuento"} en Farmaonline${who ? ` con ${who}` : ""}`, 140) ?? undefined,

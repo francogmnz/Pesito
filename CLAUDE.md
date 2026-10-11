@@ -8,7 +8,7 @@ Promos bancarias, cupones y beneficios de cumpleaños de Argentina. El proyecto 
 
 ## Reglas del proyecto
 
-- Nada se publica solo: todo lo que leen los lectores va a la cola de revisión.
+- Las fuentes oficiales publican solas únicamente lo que el lector leyó sin dudas; cualquier duda (`flags`) manda la promo a revisión. No se inventan datos: si algo no está en la fuente, queda vacío y con aviso.
 - Los lectores respetan el `robots.txt` de cada sitio (`fetchPage`) y no evaden bloqueos. De MODO no se usa `/api/` ni `/data/`.
 - No se guardan imágenes ni HTML completo en la base: solo enlaces.
 - La base de producción no se toca desde acá: las migraciones van a `supabase/migrations/`, se prueban con PGlite y las aplica Franco.

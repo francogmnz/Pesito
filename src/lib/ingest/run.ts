@@ -8,13 +8,15 @@ export interface RunSummary {
   updated: number;
   verified: number;
   flagged: number;
+  /** Leídas pero ya vencidas en la fuente: no se cargan. */
+  discarded: number;
   expired: number;
   errors: string[];
 }
 
 /** Corre todas las fuentes activas con adaptador y después vence las promos terminadas. */
 export async function runAllSources(repo: Repo, opts: { today: string; fetcher?: typeof fetch }): Promise<RunSummary> {
-  const sum: RunSummary = { sources: 0, created: 0, updated: 0, verified: 0, flagged: 0, expired: 0, errors: [] };
+  const sum: RunSummary = { sources: 0, created: 0, updated: 0, verified: 0, flagged: 0, discarded: 0, expired: 0, errors: [] };
   const sources = (await repo.listSources()).filter((s) => s.active && s.adapter && (ADAPTERS[s.adapter] || CRAWLERS[s.adapter]));
   for (const source of sources) {
     sum.sources++;
@@ -28,6 +30,7 @@ export async function runAllSources(repo: Repo, opts: { today: string; fetcher?:
       sum.updated += r.updated;
       sum.verified += r.verified;
       sum.flagged += r.flagged;
+      sum.discarded += r.skippedExpired + (crawl?.skipped ?? 0);
       // En las fuentes por tandas, "leídas" son las páginas abiertas en esta corrida.
       const found = crawl ? crawl.checked : r.found;
       const error = crawl?.errors ? `${crawl.errors} páginas no se pudieron leer; se reintentan mañana.` : null;

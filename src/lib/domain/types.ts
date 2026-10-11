@@ -88,6 +88,8 @@ export interface Promotion {
   coupon: CouponDetails | null;
   birthday: BirthdayDetails | null;
   lastVerifiedAt: string | null;
+  /** Alguien la corrigió a mano desde el panel: la automatización ya no la pisa sola. */
+  manualEditAt: string | null;
   updatedAt: string;
   /** Solo en modo demo: datos inventados para mostrar el diseño. */
   isSample: boolean;

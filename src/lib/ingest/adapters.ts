@@ -3,6 +3,7 @@ import { isValidISODate, todayAR } from "@/lib/domain/dates";
 import type { PromoPayload, Source } from "@/lib/domain/types";
 import { isSafePublicUrl } from "@/lib/domain/validation";
 import { fetchPage } from "./fetch-page";
+import { decodeEntities } from "./html";
 import { FARMAONLINE_URL, parseFarmaonline } from "./sites/farmaonline";
 import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
 import { modoCrawler } from "./sites/modo";
@@ -12,9 +13,10 @@ import { parseUala, UALA_URL } from "./sites/uala";
 
 /**
  * Candidato tal como sale de una fuente: parcial, con un identificador estable en esa fuente.
- * `flags` son dudas que detectó el lector: se muestran como motivos de revisión.
+ * `flags` son dudas que frenan la publicación automática: se muestran como motivos de revisión.
+ * `notes` son aclaraciones que no la frenan (el dato ya quedó escrito en la promo).
  */
-export type RawCandidate = Partial<PromoPayload> & { externalId: string; flags?: string[] };
+export type RawCandidate = Partial<PromoPayload> & { externalId: string; flags?: string[]; notes?: string[] };
 
 export interface Adapter {
   readonly name: string;
@@ -83,6 +85,11 @@ const numOrNull = (v: unknown) => {
 };
 const strOrNull = (v: unknown, max = 500) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 
+/** Etiquetas HTML, también las que quedaron cortadas ("<span class=…" sin cerrar). */
+const TAG = /<\/?[a-z][^>]*(>|$)/gi;
+/** Texto de una sola línea para mostrar: sin restos de HTML, entidades ni espacios de más. */
+const cleanLine = (v: unknown, max: number) => (typeof v === "string" ? strOrNull(decodeEntities(v.replace(TAG, " ")).replace(/\s+/g, " "), max) : null);
+
 /** Limpia tipos y valores sueltos que vienen de afuera. Lo que no se entiende queda null. */
 export function normalizeRaw(o: Record<string, unknown> & { externalId: string }): RawCandidate {
   const date = (v: unknown) => (typeof v === "string" && isValidISODate(v.slice(0, 10)) ? v.slice(0, 10) : null);
@@ -90,12 +97,13 @@ export function normalizeRaw(o: Record<string, unknown> & { externalId: string }
   return {
     externalId: o.externalId,
     ...(Array.isArray(o.flags) && o.flags.length ? { flags: o.flags.map(String).slice(0, 10) } : {}),
+    ...(Array.isArray(o.notes) && o.notes.length ? { notes: o.notes.map(String).slice(0, 10) } : {}),
     kind: (["reintegro", "descuento", "cupon", "cumple"].includes(o.kind as string) ? o.kind : undefined) as PromoPayload["kind"] | undefined,
     audience: (["todos", "nuevos_clientes", "cumpleanieros", "miembros"].includes(o.audience as string) ? o.audience : undefined) as PromoPayload["audience"] | undefined,
-    merchantName: strOrNull(o.merchantName, 80) ?? undefined,
+    merchantName: cleanLine(o.merchantName, 80) ?? undefined,
     categorySlug: strOrNull(o.categorySlug, 40),
-    title: strOrNull(o.title, 140) ?? undefined,
-    summary: strOrNull(o.summary, 280),
+    title: cleanLine(o.title, 140) ?? undefined,
+    summary: cleanLine(o.summary, 280),
     bank: strOrNull(o.bank, 60),
     wallet: strOrNull(o.wallet, 60),
     paymentMethodSlugs: Array.isArray(o.paymentMethodSlugs) ? o.paymentMethodSlugs.map(String).slice(0, 20) : [],
@@ -108,7 +116,7 @@ export function normalizeRaw(o: Record<string, unknown> & { externalId: string }
     validUntil: date(o.validUntil),
     daysOfWeek: days && days.length && days.length < 7 ? [...new Set(days)].sort() : null,
     channel: (["online", "local", "ambos"].includes(o.channel as string) ? o.channel : undefined) as PromoPayload["channel"] | undefined,
-    conditions: strOrNull(o.conditions, 4000),
+    conditions: strOrNull(typeof o.conditions === "string" ? o.conditions.replace(TAG, " ") : o.conditions, 4000),
     requirements: Array.isArray(o.requirements) ? (o.requirements.map(String) as PromoPayload["requirements"]) : [],
     sourceUrl: typeof o.sourceUrl === "string" && isSafePublicUrl(o.sourceUrl) ? o.sourceUrl : null,
     coupon: (o.coupon && typeof o.coupon === "object" ? o.coupon : null) as PromoPayload["coupon"],

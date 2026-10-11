@@ -214,6 +214,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   }
 
   const flags: string[] = [];
+  const notes: string[] = [];
   const where = text(p.where);
   const merchantName = niceMerchant(rows[0] || (where && !/adherid|consult/i.test(where) ? where : ""));
   if (!merchantName) flags.push("No se pudo leer el comercio");
@@ -224,7 +225,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   if (banks.length > 1) flags.push(`Aparecen varios bancos (${banks.map((b) => b.name).join(", ")}): verificar`);
   const segment = `${p.name ?? ""} ${p.short_description ?? ""} ${p.title ?? ""} ${p.description ?? ""}`.match(SEGMENT);
   const segmentName = segment ? segment[0].replace(/\s+/g, " ").replace(/^./, (ch) => ch.toUpperCase()) : null;
-  if (segment) flags.push(`Puede ser solo para un segmento de clientes (“${segment[0]}”)`);
+  if (segment) notes.push(`Solo para un segmento de clientes (“${segment[0]}”): quedó en el título y las condiciones`);
 
   const capPeriodAmount = positive(t.cap_amount_period);
   const capTx = positive(t.cap_transaction);
@@ -257,7 +258,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
     t.apply_to_pct ? "dinero en cuenta" : null,
   ].filter(Boolean);
   const fullDay = String(p.daily_start_time ?? "00:00:00").startsWith("00:00") && String(p.daily_stop_time ?? "23:59:00").startsWith("23:59");
-  if (!fullDay) flags.push("Tiene horario: no aplica todo el día");
+  if (!fullDay) notes.push("Tiene horario: quedó en las condiciones");
   const lines = [
     banks.length ? "Pagando con MODO desde la app del banco o la app MODO." : "Pagando con MODO con tarjetas de los bancos adheridos.",
     segmentName ? `Solo para clientes ${segmentName}.` : null,
@@ -277,6 +278,7 @@ export function parseModoPromo(html: string, today: string): ModoPage {
   const candidate: RawCandidate = {
     externalId,
     flags,
+    ...(notes.length ? { notes } : {}),
     kind: reintegro ? "reintegro" : "descuento",
     audience: "todos",
     merchantName: merchantName || undefined,
@@ -318,7 +320,7 @@ export const modoCrawler: Crawler = {
     const batchSize = int(cfg.batchSize, 250, 1, 1000);
     const delayMs = int(cfg.delayMs, 300, 0, 10_000);
     const recheckDays = int(cfg.recheckDays, 7, 1, 60);
-    const deadline = Date.now() + int(cfg.maxSeconds, 200, 5, 3600) * 1000;
+    const deadline = Date.now() + int(cfg.maxSeconds, 150, 5, 3600) * 1000;
     const robotsCache = new Map<string, string | null>();
     const at = (days: number) => new Date(now.getTime() + days * DAY_MS).toISOString();
 

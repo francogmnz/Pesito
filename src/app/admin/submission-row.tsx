@@ -36,11 +36,12 @@ export function SubmissionRow({ s, selectable = false }: { s: Submission; select
             <span>· {s.origin === "usuario" ? (s.submitterName ?? "Usuario") : (s.sourceName ?? "Automatización")}</span>
             <span>· {new Date(s.createdAt).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
           </p>
-          {s.flagReasons.length > 0 && (
+          {s.flagReasons.some((f) => !f.startsWith("Nota: ")) && (
             <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-alerta">
-              <Icon name="alert" size={13} /> {s.flagReasons.join(" · ")}
+              <Icon name="alert" size={13} /> {s.flagReasons.filter((f) => !f.startsWith("Nota: ")).join(" · ")}
             </p>
           )}
+          {s.flagReasons.some((f) => f.startsWith("Nota: ")) && <p className="mt-0.5 truncate text-xs text-tinta-2">{s.flagReasons.filter((f) => f.startsWith("Nota: ")).join(" · ")}</p>}
         </div>
         {s.imagePath && <Icon name="image" size={18} className="text-tenue" label="Tiene captura" />}
         <span className={`chip ${STATUS_TONE[s.status]}`}>{s.publishedPromotionId ? "Publicada" : STATUS_LABEL[s.status]}</span>
