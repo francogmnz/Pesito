@@ -73,6 +73,17 @@ export interface SourceRecordPatch {
 }
 
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
+export interface ProductSearch {
+  limit?: number;
+  offset?: number;
+  /** Por defecto, primero los que están en más comercios. */
+  sort?: "comercios" | "menor" | "mayor";
+  /** Solo los que están en más de un comercio. */
+  comparable?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
 export interface PriceStats {
   products: number;
   listings: number;
@@ -158,7 +169,7 @@ export interface Repo {
   /** Guarda lo leído en la página de un comercio; el historial suma una fila solo si cambió precio o stock. */
   upsertListing(input: ListingInput): Promise<ListingChange>;
   /** Busca por marca o nombre. Sin texto, devuelve los que están en más comercios. */
-  searchProducts(q: string, limit?: number): Promise<ProductSummary[]>;
+  searchProducts(q: string, opts?: ProductSearch): Promise<ProductSummary[]>;
   getProduct(id: string): Promise<{ product: Product; listings: Listing[] } | null>;
   priceStats(): Promise<PriceStats>;
 

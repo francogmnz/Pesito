@@ -2,7 +2,7 @@ import Link from "next/link";
 import { availability } from "@/lib/domain/calc";
 import { expiryLabel, isExpiringSoon } from "@/lib/domain/coupons";
 import { formatDate } from "@/lib/domain/dates";
-import { capLabel, headline, headlineSuffix, paymentLabel } from "@/lib/domain/labels";
+import { capLabel, headline, headlineSuffix, paymentLabel, sweetSpot } from "@/lib/domain/labels";
 import { formatARS } from "@/lib/domain/money";
 import type { Promotion } from "@/lib/domain/types";
 import { MerchantAvatar } from "./brand";
@@ -46,6 +46,9 @@ export function PromoCard({ promo, today, saved }: { promo: Promotion; today: st
         <li className="flex items-center gap-1.5">
           <Icon name="tag" size={15} /> Tope {capLabel(promo)}
         </li>
+        {sweetSpot(promo) && (
+          <li className="-mx-1 rounded-lg bg-lima-suave px-1.5 py-1 font-semibold text-verde-oscuro">Gastá {formatARS(sweetSpot(promo)!.amount)} para el máximo</li>
+        )}
         <li className="flex items-center gap-1.5">
           <Icon name="wallet" size={15} /> <span className="truncate">{paymentLabel(promo)}</span>
         </li>

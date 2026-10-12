@@ -234,3 +234,16 @@ describe("validación de sugerencias", () => {
     expect(p.capPeriod).toBe("sin_tope");
   });
 });
+
+describe("cuánto gastar para aprovechar una promo al máximo", () => {
+  it("es la compra que llega justo al tope, o la mínima si es mayor", async () => {
+    const { sweetSpot } = await import("./labels");
+    const base = { discountKind: "porcentaje", capPeriod: "semana", minPurchase: null } as const;
+    expect(sweetSpot({ ...base, discountValue: 25, capAmount: 10000 })).toEqual({ amount: 40000, saving: 10000, period: "por semana" });
+    expect(sweetSpot({ ...base, discountValue: 30, capAmount: 15000, minPurchase: 60000 })).toMatchObject({ amount: 60000, saving: 15000 });
+    expect(sweetSpot({ ...base, discountValue: 100, capAmount: 25000 })).toMatchObject({ amount: 25000 });
+    // Sin tope o sin porcentaje no hay un monto ideal.
+    expect(sweetSpot({ ...base, discountValue: 20, capAmount: null })).toBeNull();
+    expect(sweetSpot({ ...base, discountKind: "monto_fijo", discountValue: 3000, capAmount: 3000 })).toBeNull();
+  });
+});

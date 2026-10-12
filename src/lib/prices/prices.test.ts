@@ -113,6 +113,22 @@ describe("lectura de precios por tandas", () => {
     expect((await repo.searchProducts("bagovit"))[0].minPrice).toBe(14990);
   });
 
+  it("el buscador ordena por precio, filtra por rango y por comparables, y pagina", async () => {
+    const repo = createMemoryRepo();
+    const add = (merchantSlug: string, ean: string, title: string, price: number) => repo.upsertListing({ merchantSlug, merchantName: merchantSlug, sourceId: "s", externalKey: `${ean}-${merchantSlug}`, url: "https://x.example/p", ean, title, brand: "Marca", category: null, imageUrl: null, price, listPrice: null, inStock: true });
+    await add("a", "7790375267285", "Serum uno", 30000);
+    await add("b", "7790375267285", "Serum uno", 25000);
+    await add("a", "77972279", "Serum dos", 9000);
+    await add("a", "7797811099516", "Crema tres", 15000);
+    const names = async (o: Parameters<typeof repo.searchProducts>[1], q = "") => (await repo.searchProducts(q, o)).map((p) => p.name);
+    expect(await names({ sort: "menor" })).toEqual(["Serum dos", "Crema tres", "Serum uno"]);
+    expect(await names({ sort: "mayor" })).toEqual(["Serum uno", "Crema tres", "Serum dos"]);
+    expect(await names({ sort: "menor" }, "serum")).toEqual(["Serum dos", "Serum uno"]);
+    expect(await names({ comparable: true })).toEqual(["Serum uno"]);
+    expect(await names({ minPrice: 10000, maxPrice: 20000 })).toEqual(["Crema tres"]);
+    expect(await names({ sort: "menor", limit: 2, offset: 2 })).toEqual(["Serum uno"]);
+  });
+
   it("no lee lo que robots.txt prohíbe", async () => {
     const repo = createMemoryRepo();
     const blocked = site("tienda-a", 1, "User-agent: *\nDisallow: /\n");

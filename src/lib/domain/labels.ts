@@ -59,6 +59,17 @@ export function capLabel(p: Pick<Promotion, "capAmount" | "capPeriod">): string 
   return `${formatARS(p.capAmount)}${per ? ` ${per}` : ""}`;
 }
 
+/**
+ * Compra con la que se aprovecha la promo al máximo: la que llega justo al tope
+ * (o la compra mínima, si es mayor). Solo para porcentajes con tope.
+ */
+export function sweetSpot(p: Pick<Promotion, "discountKind" | "discountValue" | "capAmount" | "capPeriod" | "minPurchase">): { amount: number; saving: number; period: string } | null {
+  if (p.discountKind !== "porcentaje" || !p.discountValue || !p.capAmount) return null;
+  const toCap = Math.ceil(p.capAmount / (p.discountValue / 100));
+  const amount = Math.max(toCap, p.minPurchase ?? 0);
+  return { amount, saving: p.capAmount, period: CAP_PERIOD_LABEL[p.capPeriod] };
+}
+
 export function paymentLabel(p: Pick<Promotion, "paymentMethods">): string {
   const names = p.paymentMethods.map((m) => m.name);
   if (names.length === 0) return "Cualquier medio de pago";

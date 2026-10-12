@@ -10,7 +10,8 @@ import { PageHeader, SampleBadge } from "@/components/ui";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { availability } from "@/lib/domain/calc";
 import { todayAR } from "@/lib/domain/dates";
-import { headline, headlineSuffix, KIND_LABEL } from "@/lib/domain/labels";
+import { headline, headlineSuffix, KIND_LABEL, sweetSpot } from "@/lib/domain/labels";
+import { formatARS } from "@/lib/domain/money";
 
 export default async function PromoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,6 +23,7 @@ export default async function PromoDetailPage({ params }: { params: Promise<{ id
   const today = todayAR();
   const state = user ? (await repo.getUserStates(user.id)).get(id) : undefined;
   const av = availability(promo, today);
+  const best = sweetSpot(promo);
 
   return (
     <div>
@@ -46,6 +48,18 @@ export default async function PromoDetailPage({ params }: { params: Promise<{ id
           <Icon name={av.state === "activa" ? "checkCircle" : "clock"} size={16} /> {av.label}
         </p>
       </section>
+
+      {best && (
+        <section className="mt-3 flex items-center gap-3 rounded-2xl bg-lima p-4 text-bosque">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-bosque text-lima">
+            <Icon name="bolt" />
+          </span>
+          <p className="text-[15px] leading-snug">
+            <b className="block text-[17px]">Para aprovecharla al máximo, gastá {formatARS(best.amount)}</b>
+            Con esa compra te {promo.kind === "reintegro" ? "devuelven" : "descuentan"} {formatARS(best.saving)}, que es el tope{best.period ? ` ${best.period}` : ""}. Si gastás más, el beneficio no sube.
+          </p>
+        </section>
+      )}
 
       {promo.birthday && (
         <section className="mt-4 grid gap-2">

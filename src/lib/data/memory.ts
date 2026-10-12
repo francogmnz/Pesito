@@ -568,17 +568,21 @@ export function createMemoryRepo(): Repo {
       if (changed) st.priceHistory.push({ key, price: input.price, at: now });
       return changed ? "cambio" : "igual";
     },
-    async searchProducts(q, limit = 30) {
+    async searchProducts(q, o = {}) {
+      const limit = o.limit ?? 30;
       const st = s();
       const terms = normalizeText(q).split(" ").filter(Boolean);
       const out: ProductSummary[] = [];
       for (const p of st.products.values()) {
         if (!terms.every((t) => p.search.includes(t))) continue;
         const prices = [...st.listings.values()].filter((l) => l.ean === p.ean && l.inStock).map((l) => l.price);
-        if (!prices.length) continue;
+        if (prices.length < (o.comparable ? 2 : 1)) continue;
+        const min = Math.min(...prices);
+        if ((o.minPrice != null && min < o.minPrice) || (o.maxPrice != null && min > o.maxPrice)) continue;
         out.push({ id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl, stores: prices.length, minPrice: Math.min(...prices), maxPrice: Math.max(...prices) });
       }
-      return out.sort((a, b) => b.stores - a.stores || a.name.localeCompare(b.name)).slice(0, limit);
+      const by = o.sort === "menor" ? (a: ProductSummary, b: ProductSummary) => a.minPrice - b.minPrice : o.sort === "mayor" ? (a: ProductSummary, b: ProductSummary) => b.minPrice - a.minPrice : (a: ProductSummary, b: ProductSummary) => b.stores - a.stores;
+      return out.sort((a, b) => by(a, b) || a.name.localeCompare(b.name)).slice(o.offset ?? 0, (o.offset ?? 0) + limit);
     },
     async getProduct(id) {
       const st = s();
