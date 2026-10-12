@@ -82,6 +82,15 @@ export interface ProductSearch {
   comparable?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  /** Solo lo que vende este comercio (el precio y el orden son los de ese comercio). */
+  merchantSlug?: string;
+}
+
+/** Comercio que tiene precios cargados, con cuántos productos. */
+export interface PriceMerchant {
+  slug: string;
+  name: string;
+  products: number;
 }
 
 export interface PriceStats {
@@ -165,13 +174,14 @@ export interface Repo {
   saveSourceRecord(sourceId: string, key: string, patch: SourceRecordPatch): Promise<void>;
   sourceRecordStats(sourceId: string): Promise<Partial<Record<SourceRecordState, number>>>;
 
-  // «¿Dónde conviene?»: productos y precios por comercio
+  // «Comparar precios»: productos y precios por comercio
   /** Guarda lo leído en la página de un comercio; el historial suma una fila solo si cambió precio o stock. */
   upsertListing(input: ListingInput): Promise<ListingChange>;
   /** Busca por marca o nombre. Sin texto, devuelve los que están en más comercios. */
   searchProducts(q: string, opts?: ProductSearch): Promise<ProductSummary[]>;
   getProduct(id: string): Promise<{ product: Product; listings: Listing[] } | null>;
   priceStats(): Promise<PriceStats>;
+  priceMerchants(): Promise<PriceMerchant[]>;
 
   // Límites
   countRecentSubmissions(userId: string, ipHash: string | null, sinceISO: string): Promise<{ byUser: number; byIp: number }>;

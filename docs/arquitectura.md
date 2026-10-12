@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -107,7 +107,7 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 - Programación: `vercel.json` corre `/api/cron/actualizar` todos los días a las 10:00 UTC (7:00 en Argentina). Necesita `CRON_SECRET` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel.
 - Si un sitio cambia su estructura, el lector falla con un error claro en Panel → Automatización; las pruebas usan copias en `tests/fixtures/`.
 
-### «¿Dónde conviene?»: productos y precios (0014)
+### «Comparar precios»: productos y precios (0014)
 
 Compara el mismo producto entre comercios. Arranca con perfumería, dermocosmética y cuidado personal de Farmaonline y Farmacity (tiendas VTEX).
 

@@ -4,7 +4,7 @@ import { EmptyState, FinePrint, Notice, PageHeader } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { formatARS, parseARS } from "@/lib/domain/money";
 
-export const metadata = { title: "¿Dónde conviene?" };
+export const metadata = { title: "Comparar precios" };
 
 const PAGE = 24;
 const SORTS = [
@@ -14,7 +14,7 @@ const SORTS = [
 ] as const;
 type Sort = (typeof SORTS)[number][0];
 
-type SP = Promise<{ q?: string; orden?: string; comparar?: string; desde?: string; hasta?: string; pagina?: string }>;
+type SP = Promise<{ q?: string; orden?: string; comparar?: string; desde?: string; hasta?: string; pagina?: string; comercio?: string }>;
 
 export default async function WherePage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -26,13 +26,18 @@ export default async function WherePage({ searchParams }: { searchParams: SP }) 
   const page = Math.min(500, Math.max(1, Math.trunc(Number(sp.pagina)) || 1));
   const repo = await getRepo();
   // Se pide uno de más para saber si hay página siguiente.
-  const [found, stats] = await Promise.all([repo.searchProducts(q, { limit: PAGE + 1, offset: (page - 1) * PAGE, sort, comparable, minPrice, maxPrice }), repo.priceStats()]);
+  const merchantSlug = /^[a-z0-9-]{1,60}$/.test(sp.comercio ?? "") ? sp.comercio : undefined;
+  const [found, stats, merchants] = await Promise.all([
+    repo.searchProducts(q, { limit: PAGE + 1, offset: (page - 1) * PAGE, sort, comparable, minPrice, maxPrice, merchantSlug }),
+    repo.priceStats(),
+    repo.priceMerchants(),
+  ]);
   const results = found.slice(0, PAGE);
   const hasNext = found.length > PAGE;
-  const filtered = !!q || comparable || minPrice != null || maxPrice != null;
+  const filtered = !!q || comparable || minPrice != null || maxPrice != null || !!merchantSlug;
 
   const link = (patch: Record<string, string | undefined>) => {
-    const merged: Record<string, string | undefined> = { q: q || undefined, orden: sort === "comercios" ? undefined : sort, comparar: comparable ? "1" : undefined, desde: sp.desde || undefined, hasta: sp.hasta || undefined, pagina: undefined, ...patch };
+    const merged: Record<string, string | undefined> = { q: q || undefined, orden: sort === "comercios" ? undefined : sort, comparar: comparable ? "1" : undefined, desde: sp.desde || undefined, hasta: sp.hasta || undefined, comercio: merchantSlug, pagina: undefined, ...patch };
     const next = new URLSearchParams();
     for (const [k, v] of Object.entries(merged)) if (v) next.set(k, v);
     const s = next.toString();
@@ -42,7 +47,7 @@ export default async function WherePage({ searchParams }: { searchParams: SP }) 
 
   return (
     <div>
-      <PageHeader title="¿Dónde conviene?" back="/" subtitle="El mismo producto. El mejor precio." />
+      <PageHeader title="Comparar precios" back="/" subtitle="El mismo producto, en distintas farmacias." />
       <form action="/conviene" className="grid gap-2">
         <div className="flex gap-2">
           <input name="q" type="search" defaultValue={q} placeholder="Buscá por marca o producto" aria-label="Buscar producto" className="campo flex-1" />
@@ -60,7 +65,27 @@ export default async function WherePage({ searchParams }: { searchParams: SP }) 
         )}
         {sort !== "comercios" && <input type="hidden" name="orden" value={sort} />}
         {comparable && <input type="hidden" name="comparar" value="1" />}
+        {merchantSlug && <input type="hidden" name="comercio" value={merchantSlug} />}
       </form>
+
+      {merchants.length > 0 && (
+        <section className="mt-4">
+          <h2 className="flex items-center gap-2 font-bold">
+            <Icon name="pill" size={18} className="text-verde" /> Farmacias y perfumerías
+          </h2>
+          <p className="text-xs text-tinta-2">Por ahora comparamos estas tiendas. Tocá una para ver solo sus productos.</p>
+          <div className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+            <Link href={link({ comercio: undefined })} aria-current={!merchantSlug ? "true" : undefined} className={chip(!merchantSlug)}>
+              Todas
+            </Link>
+            {merchants.map((m) => (
+              <Link key={m.slug} href={link({ comercio: merchantSlug === m.slug ? undefined : m.slug })} aria-current={merchantSlug === m.slug ? "true" : undefined} className={chip(merchantSlug === m.slug)}>
+                {m.name} <span className="ml-1 opacity-60">{m.products.toLocaleString("es-AR")}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {stats.products > 0 && (
         <div className="-mx-4 mt-2 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -83,6 +108,7 @@ export default async function WherePage({ searchParams }: { searchParams: SP }) 
         <>
           <p className="mb-2 text-sm text-tinta-2">
             {q ? `Resultados para «${q}»` : "Productos cargados"}
+            {merchantSlug ? ` · ${merchants.find((m) => m.slug === merchantSlug)?.name ?? "una tienda"}` : ""}
             {page > 1 ? ` · página ${page}` : ""}
           </p>
           <ul className="grid gap-2">

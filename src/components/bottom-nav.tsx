@@ -17,7 +17,7 @@ const QUICK = [
   { href: "/sugerir", label: "Sugerí una promo", hint: "Mandanos una promo que encontraste", icon: "plus", primary: true },
   { href: "/calculadora", label: "Calculadora de reintegro", hint: "Cuánto te devuelven y cuánto pagás", icon: "calculator" },
   { href: "/comparador", label: "Comparar medios de pago", hint: "Qué tarjeta o billetera conviene", icon: "compare" },
-  { href: "/conviene", label: "¿Dónde conviene?", hint: "El mismo producto, el mejor precio", icon: "store" },
+  { href: "/conviene", label: "Comparar precios", hint: "El mismo producto en distintas farmacias", icon: "store" },
   { href: "/cumple", label: "Tu cumple con Pesito", hint: "Beneficios para tu cumpleaños", icon: "cake" },
 ] as const;
 

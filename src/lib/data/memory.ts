@@ -575,7 +575,9 @@ export function createMemoryRepo(): Repo {
       const out: ProductSummary[] = [];
       for (const p of st.products.values()) {
         if (!terms.every((t) => p.search.includes(t))) continue;
-        const prices = [...st.listings.values()].filter((l) => l.ean === p.ean && l.inStock).map((l) => l.price);
+        const all = [...st.listings.values()].filter((l) => l.ean === p.ean && l.inStock);
+        if (o.merchantSlug && !all.some((l) => l.merchantSlug === o.merchantSlug)) continue;
+        const prices = all.map((l) => l.price);
         if (prices.length < (o.comparable ? 2 : 1)) continue;
         const min = Math.min(...prices);
         if ((o.minPrice != null && min < o.minPrice) || (o.maxPrice != null && min > o.maxPrice)) continue;
@@ -590,6 +592,11 @@ export function createMemoryRepo(): Repo {
       if (!p) return null;
       const listings = [...st.listings.values()].filter((l) => l.ean === p.ean).map((l) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt }));
       return { product: { id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl }, listings };
+    },
+    async priceMerchants() {
+      const m = new Map<string, { slug: string; name: string; products: number }>();
+      for (const l of s().listings.values()) m.set(l.merchantSlug, { slug: l.merchantSlug, name: l.merchantName, products: (m.get(l.merchantSlug)?.products ?? 0) + 1 });
+      return [...m.values()].sort((a, b) => b.products - a.products);
     },
     async priceStats() {
       const st = s();

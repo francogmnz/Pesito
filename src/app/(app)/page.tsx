@@ -19,7 +19,7 @@ const HOME_CATEGORIES = [
 ];
 
 const TOOLS = [
-  { href: "/conviene", label: "¿Dónde conviene?", icon: "store" },
+  { href: "/conviene", label: "Comparar precios", icon: "store" },
   { href: "/calculadora", label: "Calculadora de reintegro", icon: "calculator" },
   { href: "/comparador", label: "Comparar medios de pago", icon: "compare" },
 ] as const;

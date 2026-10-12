@@ -127,6 +127,8 @@ describe("lectura de precios por tandas", () => {
     expect(await names({ comparable: true })).toEqual(["Serum uno"]);
     expect(await names({ minPrice: 10000, maxPrice: 20000 })).toEqual(["Crema tres"]);
     expect(await names({ sort: "menor", limit: 2, offset: 2 })).toEqual(["Serum uno"]);
+    expect(await names({ merchantSlug: "b" })).toEqual(["Serum uno"]);
+    expect(await repo.priceMerchants()).toEqual([{ slug: "a", name: "a", products: 3 }, { slug: "b", name: "b", products: 1 }]);
   });
 
   it("no lee lo que robots.txt prohíbe", async () => {

@@ -1,5 +1,5 @@
 /**
- * Productos y precios de «¿Dónde conviene?».
+ * Productos y precios de «Comparar precios».
  * Un producto es el mismo en dos comercios solo si comparten código de barras (EAN/GTIN) válido.
  */
 

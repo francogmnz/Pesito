@@ -13,7 +13,7 @@ function authorized(request: Request): boolean {
 }
 
 /**
- * Precios de «¿Dónde conviene?»: lee una tanda de páginas de producto de cada comercio y guarda
+ * Precios de «Comparar precios»: lee una tanda de páginas de producto de cada comercio y guarda
  * el precio vigente. Va aparte de la actualización de promos para no competir por el tiempo de la función.
  */
 export async function GET(request: Request) {
