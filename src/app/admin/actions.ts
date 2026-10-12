@@ -8,7 +8,7 @@ import { todayAR } from "@/lib/domain/dates";
 import { fingerprint } from "@/lib/domain/fingerprint";
 import { canPublish, ModerationError, nextStatus, type ModerationAction } from "@/lib/domain/moderation";
 import { payloadFromForm } from "@/lib/domain/payload-form";
-import type { PromoStatus, Submission } from "@/lib/domain/types";
+import type { PromoPayload, PromoStatus, Submission } from "@/lib/domain/types";
 import type { MerchantPatch, Repo } from "@/lib/data/repo";
 import { payloadSchema, publishProblems, sniffImageType } from "@/lib/domain/validation";
 import { isBlocking } from "@/lib/ingest/process";
@@ -239,6 +239,64 @@ export async function createPromotion(_: AdminState, form: FormData): Promise<Ad
   refresh();
   revalidatePath("/", "layout");
   redirect(`/admin/promos/${id}`);
+}
+
+/**
+ * Carga rápida: un cupón o una oferta que se termina pronto, con lo mínimo (comercio, beneficio, código y hasta cuándo).
+ * Se publica al guardar; el enlace es opcional.
+ */
+export async function quickCoupon(_: AdminState, form: FormData): Promise<AdminState> {
+  const admin = await requireAdmin();
+  const text = (k: string, max: number) => String(form.get(k) ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+  const merchantName = text("merchantName", 80);
+  const value = Number(String(form.get("value") ?? "").replace(/[^\d,.]/g, "").replace(/\./g, "").replace(",", "."));
+  const percent = form.get("unit") !== "pesos";
+  const code = text("code", 40).toUpperCase().replace(/[^A-Z0-9_-]/g, "") || null;
+  const detail = text("detail", 280) || null;
+  const url = text("sourceUrl", 300) || null;
+  if (!merchantName) return { ok: false, message: "Escribí el comercio." };
+  if (!(value > 0) || (percent && value > 100)) return { ok: false, message: percent ? "El porcentaje tiene que estar entre 1 y 100." : "Escribí el monto del descuento." };
+  const benefit = percent ? `${value}% de descuento` : `$${value.toLocaleString("es-AR")} de descuento`;
+  const payload: PromoPayload = {
+    kind: "cupon",
+    audience: form.get("newOnly") === "on" ? "nuevos_clientes" : "todos",
+    merchantName,
+    categorySlug: text("categorySlug", 40) || null,
+    title: `${benefit} en ${merchantName}`.slice(0, 140),
+    summary: detail,
+    bank: null,
+    wallet: null,
+    paymentMethodSlugs: [],
+    discountKind: percent ? "porcentaje" : "monto_fijo",
+    discountValue: value,
+    capAmount: null,
+    capPeriod: "sin_tope",
+    minPurchase: null,
+    validFrom: null,
+    validUntil: text("validUntil", 10) || null,
+    daysOfWeek: null,
+    channel: "ambos",
+    conditions: detail,
+    requirements: [],
+    sourceUrl: url,
+    externalId: null,
+    coupon: { redemption: code ? "codigo" : "automatico", code, newCustomersOnly: form.get("newOnly") === "on", requiresExternalSignup: false, externalPlatform: null },
+    birthday: null,
+  };
+  if (!payload.validUntil) return { ok: false, message: "Poné hasta cuándo vale: así aparece en «Se terminan pronto» y se da de baja sola." };
+  if (payload.validUntil < todayAR()) return { ok: false, message: "Esa fecha ya pasó." };
+  const parsed = payloadSchema.safeParse(payload);
+  if (!parsed.success) return { ok: false, message: "Hay datos inválidos.", problems: parsed.error.issues.map((i) => `${i.path.join(".") || "datos"}: ${i.message}`) };
+  const problems = publishProblems(payload);
+  if (problems.length) return { ok: false, message: "Falta para publicar:", problems };
+  try {
+    await (await getRepo()).publishPayload(payload, { fingerprint: fingerprint(payload), actorId: admin.id, sourceId: null });
+  } catch (e) {
+    return fail(e);
+  }
+  refresh();
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Publicado: ${payload.title}${code ? ` (código ${code})` : ""}. Podés cargar otro.` };
 }
 
 const MAX_LOGO_BYTES = 1024 * 1024;

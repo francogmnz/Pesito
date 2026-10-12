@@ -38,9 +38,14 @@ export default async function PromosAdmin({ searchParams }: { searchParams: SP }
           <h1 className="text-xl font-bold">Promos, cupones y beneficios cargados</h1>
           <p className="text-sm text-tinta-2">Editá, archivá o volvé a publicar lo que ya está en la app. Lo archivado deja de verse, pero no se borra.</p>
         </div>
-        <Link href="/admin/promos/nueva" className="btn-primario btn-chico">
-          Cargar una nueva
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/promos/rapida" className="btn-primario btn-chico">
+            Carga rápida de cupón
+          </Link>
+          <Link href="/admin/promos/nueva" className="btn-secundario btn-chico">
+            Carga completa
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

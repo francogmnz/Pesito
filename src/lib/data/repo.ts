@@ -183,6 +183,9 @@ export interface Repo {
   priceStats(): Promise<PriceStats>;
   priceMerchants(): Promise<PriceMerchant[]>;
 
+  /** Borra lo que ya no sirve (historial de precios viejo, corridas viejas) para que la base no crezca sin límite. */
+  cleanup(): Promise<void>;
+
   // Límites
   countRecentSubmissions(userId: string, ipHash: string | null, sinceISO: string): Promise<{ byUser: number; byIp: number }>;
 

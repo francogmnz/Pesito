@@ -595,6 +595,19 @@ export function createMemoryRepo(): Repo {
         .map(([key, l]) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt, history: st.priceHistory.filter((x) => x.key === key).map((x) => ({ price: x.price, at: x.at })) }));
       return { product: { id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl }, listings };
     },
+    async cleanup() {
+      const st = s();
+      const cutoff = new Date(Date.now() - 90 * 86_400_000).toISOString();
+      // Detalle de 90 días; de lo anterior queda el primer precio de cada semana.
+      const keep = new Set<string>();
+      st.priceHistory = st.priceHistory.filter((x) => {
+        if (x.at >= cutoff) return true;
+        const week = `${x.key}|${Math.floor(new Date(x.at).getTime() / (7 * 86_400_000))}`;
+        if (keep.has(week)) return false;
+        keep.add(week);
+        return true;
+      });
+    },
     async priceMerchants() {
       const m = new Map<string, { slug: string; name: string; products: number }>();
       for (const l of s().listings.values()) m.set(l.merchantSlug, { slug: l.merchantSlug, name: l.merchantName, products: (m.get(l.merchantSlug)?.products ?? 0) + 1 });

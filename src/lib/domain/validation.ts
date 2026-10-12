@@ -227,7 +227,8 @@ export function publishProblems(p: PromoPayload): string[] {
   const out: string[] = [];
   const parsed = payloadSchema.safeParse(p);
   if (!parsed.success) out.push(...parsed.error.issues.map((i) => `${i.path.join(".") || "datos"}: ${i.message}`));
-  if (!p.sourceUrl) out.push("Falta el enlace a la fuente oficial.");
+  // Un cupón visto en redes puede no tener página propia: no se le exige enlace.
+  if (!p.sourceUrl && p.kind !== "cupon") out.push("Falta el enlace a la fuente oficial.");
   if (p.discountKind !== "regalo" && p.discountValue == null) out.push("Falta el valor del beneficio.");
   if (p.discountKind === "porcentaje" && (p.discountValue ?? 0) > 100) out.push("El porcentaje supera 100%.");
   if (p.kind === "cupon" && !p.coupon) out.push("Faltan los datos del cupón.");

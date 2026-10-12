@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql", "0018_fuente_brubank.sql", "0019_fuente_belo.sql", "0020_fuente_getthelook_promos.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql", "0018_fuente_brubank.sql", "0019_fuente_belo.sql", "0020_fuente_getthelook_promos.sql", "0021_limpieza_y_cupones_sin_enlace.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -306,5 +306,24 @@ describe("migraciones", () => {
     await rejects(as(ADMIN, () => db.query(`select public.upsert_listing($1::jsonb)`, [listing({ ean: "no-es-un-codigo" })])));
     const src = await db.query<{ name: string; auto_publish: boolean }>(`select name, auto_publish from public.sources where adapter = 'vtex-precios' order by name`);
     expect(src.rows).toEqual([{ name: "Farmacity · Precios", auto_publish: false }, { name: "Farmaonline · Precios", auto_publish: false }, { name: "Farmaplus · Precios", auto_publish: false }, { name: "Get The Look · Precios", auto_publish: false }, { name: "Pigmento · Precios", auto_publish: false }]);
+  });
+
+  it("un cupón se publica sin enlace, el resto no; la limpieza resume el historial viejo de precios", async () => {
+    const coupon = { kind: "cupon", audience: "todos", merchantName: "Rappi", categorySlug: null, title: "30% de descuento en Rappi", summary: null, paymentMethodSlugs: [], discountKind: "porcentaje", discountValue: 30, capAmount: null, capPeriod: "sin_tope", minPurchase: null, validFrom: null, validUntil: "2099-01-01", daysOfWeek: null, channel: "ambos", conditions: null, requirements: [], sourceUrl: null, externalId: null, coupon: { redemption: "codigo", code: "RAPPI30", newCustomersOnly: false, requiresExternalSignup: false, externalPlatform: null }, birthday: null };
+    const ok = await as(ADMIN, () => db.query<{ id: string }>(`select public.publish_promotion($1::jsonb, 'fp-cupon-sin-enlace', 'rappi') as id`, [JSON.stringify(coupon)]));
+    expect(ok.rows[0].id).toBeTruthy();
+    await rejects(as(ADMIN, () => db.query(`select public.publish_promotion($1::jsonb, 'fp-promo-sin-enlace', 'rappi')`, [JSON.stringify({ ...coupon, kind: "descuento", coupon: null, paymentMethodSlugs: ["modo"] })])));
+
+    // Tres precios viejos en la misma semana y uno reciente: de los viejos queda el primero.
+    const mp = (await db.query<{ id: string }>(`select id from public.merchant_products limit 1`)).rows[0].id;
+    await db.query(`delete from public.price_history where merchant_product_id = $1`, [mp]);
+    await db.query(`insert into public.price_history (merchant_product_id, price, in_stock, at) values ($1, 100, true, date_trunc('week', now() - interval '200 days') + interval '1 day'), ($1, 110, true, date_trunc('week', now() - interval '200 days') + interval '2 days'), ($1, 120, true, date_trunc('week', now() - interval '200 days') + interval '3 days'), ($1, 130, true, now() - interval '5 days')`, [mp]);
+    await db.query(`insert into public.ingestion_runs (started_at, found) values (now() - interval '40 days', 1), (now() - interval '2 days', 1)`);
+    await as(ADMIN, () => db.query(`select public.cleanup_old_data()`));
+    const left = await db.query<{ price: string }>(`select price from public.price_history where merchant_product_id = $1 order by at`, [mp]);
+    expect(left.rows.map((r) => Number(r.price))).toEqual([100, 130]);
+    const runs = await db.query(`select 1 from public.ingestion_runs where started_at < now() - interval '30 days'`);
+    expect(runs.rows).toHaveLength(0);
+    await rejects(as(U1, () => db.query(`select public.cleanup_old_data()`)));
   });
 });
