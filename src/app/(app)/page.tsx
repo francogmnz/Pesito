@@ -7,7 +7,8 @@ import { getCurrentUser, getRepo } from "@/lib/data";
 import { daysUntilBirthday } from "@/lib/domain/birthday";
 import { availability } from "@/lib/domain/calc";
 import { byExpiry, isExpired } from "@/lib/domain/coupons";
-import { todayAR } from "@/lib/domain/dates";
+import { daysBetween, todayAR } from "@/lib/domain/dates";
+import { headline, headlineSuffix } from "@/lib/domain/labels";
 
 const HOME_CATEGORIES = [
   { slug: "", name: "Todas", icon: "bag" },
@@ -47,6 +48,13 @@ export default async function HomePage() {
     })
     .slice(0, 4);
   const couponList = coupons.filter((c) => !isExpired(c, today) && !states.get(c.id)?.usedAt).sort(byExpiry).slice(0, 3);
+  // Lo que vence hoy o en los próximos tres días, de lo más urgente a lo menos; a igual urgencia, el mayor beneficio.
+  const flash = [...promos, ...coupons]
+    .filter((p) => p.validUntil && !states.get(p.id)?.usedAt && availability(p, today).state !== "vencida")
+    .map((p) => ({ p, left: daysBetween(today, p.validUntil!) }))
+    .filter((x) => x.left >= 0 && x.left <= 3)
+    .sort((a, b) => a.left - b.left || (b.p.discountValue ?? 0) - (a.p.discountValue ?? 0))
+    .slice(0, 10);
   const bdayIn = user?.birthdayDay && user.birthdayMonth ? daysUntilBirthday(user.birthdayDay, user.birthdayMonth, today) : null;
 
   return (
@@ -82,6 +90,24 @@ export default async function HomePage() {
           </Link>
         ))}
       </nav>
+
+      {flash.length > 0 && (
+        <section className="mt-5" aria-label="Se terminan pronto">
+          <h2 className="flex items-center gap-1.5 text-[17px] font-bold">
+            <Icon name="bolt" size={18} className="text-alerta" /> Se terminan pronto
+          </h2>
+          <div className="-mx-4 mt-2 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+            {flash.map(({ p, left }) => (
+              <Link key={p.id} href={p.kind === "cupon" ? `/cupones/${p.id}` : `/promos/${p.id}`} className="tarjeta flex w-[150px] shrink-0 flex-col gap-1 p-3">
+                <span className="chip w-fit bg-alerta-suave text-alerta">{left === 0 ? "Termina hoy" : left === 1 ? "Termina mañana" : `Quedan ${left} días`}</span>
+                <b className="numero text-[22px] leading-none">{headline(p)}</b>
+                <span className="text-xs font-semibold text-tinta-2">{p.kind === "cupon" ? "cupón" : headlineSuffix(p)}</span>
+                <span className="line-clamp-2 text-[13px] leading-tight font-semibold">{p.merchant.name}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <nav aria-label="Categorías" className="-mx-4 mt-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {HOME_CATEGORIES.map((c) => (

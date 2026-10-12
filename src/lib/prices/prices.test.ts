@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryRepo, resetDemoStore } from "@/lib/data/memory";
-import { compareListings, isValidGtin, normalizeGtin, priceAge, type Listing } from "@/lib/domain/products";
+import { compareListings, isValidGtin, normalizeGtin, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
 import type { Source } from "@/lib/domain/types";
 import { crawlPrices } from "./crawl";
 import { parseVtexProduct, parseVtexProductSitemap, parseVtexSitemapIndex } from "./vtex";
@@ -48,6 +48,21 @@ describe("comparación entre comercios", () => {
     expect(c.available.map((x) => x.merchantName)).toEqual(["B", "A"]);
     expect(c.unavailable.map((x) => x.merchantName)).toEqual(["C"]);
     expect(c.spread).toEqual({ amount: 20000, percent: 40 });
+  });
+
+  it("dice si la oferta es de verdad mirando el historial", () => {
+    const now = new Date("2026-10-30T12:00:00Z");
+    const at = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+    const withHistory = (price: number, history: [number, number][], listPrice: number | null = null): Listing => ({ ...l("A", price), listPrice, history: history.map(([p, d]) => ({ price: p, at: at(d) })) });
+    expect(priceTrend(withHistory(8000, [[10000, 20], [8000, 1]]), now)).toEqual({ tone: "bueno", text: "Es el precio más bajo desde que lo seguimos (20 días). Antes estaba 20% más caro." });
+    expect(priceTrend(withHistory(9000, [[8000, 20], [10000, 10], [9000, 1]]), now)).toMatchObject({ tone: "bueno", text: "Bajó 10% respecto del precio anterior, pero ya estuvo más barato." });
+    expect(priceTrend(withHistory(12000, [[10000, 20], [12000, 1]]), now)).toMatchObject({ tone: "malo", text: "Subió 20% respecto del precio anterior." });
+    // Precio tachado que nunca vimos cobrar: la «oferta» lleva semanas.
+    expect(priceTrend(withHistory(8000, [[8000, 20]], 16000), now)).toMatchObject({ tone: "neutro" });
+    // Recién cargado o sin precio tachado: no se afirma nada.
+    expect(priceTrend(withHistory(8000, [[8000, 2]], 16000), now)).toBeNull();
+    expect(priceTrend(withHistory(8000, [[8000, 20]]), now)).toBeNull();
+    expect(priceTrend(l("A", 8000), now)).toBeNull();
   });
 
   it("nunca presenta un precio viejo como recién verificado", () => {

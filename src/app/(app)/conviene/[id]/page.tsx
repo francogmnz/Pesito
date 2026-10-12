@@ -6,7 +6,8 @@ import { getCurrentUser, getRepo } from "@/lib/data";
 import { compareForMerchant, type CompareRow } from "@/lib/domain/calc";
 import { todayAR } from "@/lib/domain/dates";
 import { formatARS } from "@/lib/domain/money";
-import { compareListings, priceAge, type Listing } from "@/lib/domain/products";
+import { normalizeText } from "@/lib/domain/fingerprint";
+import { compareListings, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
 
 export const metadata = { title: "Comparar precios" };
 
@@ -18,13 +19,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const { product, listings } = found;
   const cmp = compareListings(listings);
   const today = todayAR();
-  const [user, paymentMethods] = await Promise.all([getCurrentUser(), repo.listPaymentMethods()]);
+  const [user, paymentMethods, merchants] = await Promise.all([getCurrentUser(), repo.listPaymentMethods(), repo.listMerchants()]);
+  // Las promos de una cadena suelen estar cargadas con otro nombre ("Farmacity Online", "Farmacity, Simplicity y Get the look"):
+  // valen las de todo comercio cuyo nombre contiene el de la tienda.
+  const sameChain = (name: string) => merchants.filter((m) => ` ${normalizeText(m.name)} `.includes(` ${normalizeText(name)} `)).map((m) => m.slug);
 
   // Mejor promo bancaria de hoy en cada comercio, calculada con el mismo motor de la calculadora.
   const bestPromo = new Map<string, CompareRow>();
   await Promise.all(
     cmp.available.map(async (l) => {
-      const promos = await repo.listPromotions({ merchantSlug: l.merchantSlug, kinds: ["reintegro", "descuento"], limit: 100 });
+      const slugs = [...new Set([l.merchantSlug, ...sameChain(l.merchantName)])].slice(0, 6);
+      // El precio es el de la tienda online: no cuentan las promos que son solo para locales.
+      const promos = (await Promise.all(slugs.map((merchantSlug) => repo.listPromotions({ merchantSlug, kinds: ["reintegro", "descuento"], limit: 100 })))).flat().filter((p) => p.channel !== "local");
       const rows = compareForMerchant(promos, l.price, today, paymentMethods, user?.paymentMethodIds ?? []).filter((r) => r.promotion && r.appliesToday && r.result?.eligible && r.result.saving > 0);
       // Si la persona cargó sus medios de pago, primero los suyos.
       const row = rows.find((r) => r.userHasIt) ?? rows[0];
@@ -34,6 +40,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   const row = (l: Listing, best: boolean) => {
     const age = priceAge(l.lastOkAt);
+    const trend = l.inStock ? priceTrend(l) : null;
     const promo = bestPromo.get(l.merchantSlug);
     return (
       <li key={l.url} className={`tarjeta p-4 ${best ? "ring-2 ring-verde" : ""}`}>
@@ -48,6 +55,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {l.inStock && l.listPrice && <span className="numero block text-xs text-tinta-2 line-through">{formatARS(l.listPrice)}</span>}
           </div>
         </div>
+        {trend && (
+          <p className={`mt-2 text-sm font-semibold ${trend.tone === "bueno" ? "text-verde-oscuro" : trend.tone === "malo" ? "text-alerta" : "text-tinta-2"}`}>{trend.text}</p>
+        )}
         {l.inStock && promo?.promotion && promo.result && (
           <Link href={`/promos/${promo.promotion.id}`} className="mt-3 block rounded-2xl bg-lima-suave p-3 text-sm text-verde-oscuro">
             <b>
