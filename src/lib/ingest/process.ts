@@ -1,6 +1,6 @@
 import type { Repo } from "@/lib/data/repo";
 import { findDuplicates } from "@/lib/domain/duplicates";
-import { fingerprint, normalizeText } from "@/lib/domain/fingerprint";
+import { fingerprint, normalizeText, slugify } from "@/lib/domain/fingerprint";
 import type { PromoPayload, Promotion, Source, Submission } from "@/lib/domain/types";
 import { payloadSchema, publishProblems } from "@/lib/domain/validation";
 import type { RawCandidate } from "./adapters";
@@ -91,6 +91,21 @@ export function sameBenefit(next: PromoPayload, p: Promotion): boolean {
   );
 }
 
+/**
+ * La misma oferta contada por dos fuentes con algún detalle distinto (una dice "hasta el 27" y la otra "hasta el 31"):
+ * mismo comercio, beneficio, tope, días y código. No alcanza para sumar medios de pago, pero sí para no cargarla dos veces.
+ */
+export function sameOffer(next: PromoPayload, p: Promotion): boolean {
+  return (
+    normalizeText(next.merchantName) === normalizeText(p.merchant.name) &&
+    next.discountKind === p.discountKind &&
+    (next.discountValue ?? null) === (p.discountValue ?? null) &&
+    (next.capAmount ?? null) === (p.capAmount ?? null) &&
+    sameSet(next.daysOfWeek, p.daysOfWeek) &&
+    (next.coupon?.code ?? "").toUpperCase() === (p.coupon?.code ?? "").toUpperCase()
+  );
+}
+
 /** Aclaraciones que acompañan a la promo pero no frenan su publicación. En la cola se ven con este prefijo. */
 export const NOTE_PREFIX = "Nota: ";
 export const isBlocking = (reason: string) => !reason.startsWith(NOTE_PREFIX);
@@ -149,6 +164,15 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
     r.flagged++;
   };
 
+  // Para detectar repetidas se mira todo lo cargado de ese comercio (la lista general trae solo las primeras 1.000 promos).
+  const byMerchant = new Map<string, Promotion[]>();
+  const peersOf = async (merchantName: string): Promise<Promotion[]> => {
+    const slug = slugify(merchantName);
+    if (!slug) return [];
+    if (!byMerchant.has(slug)) byMerchant.set(slug, await repo.listPromotions({ merchantSlug: slug, statuses: ["publicada", "en_revision", "borrador"], limit: 300 }));
+    return byMerchant.get(slug)!;
+  };
+
   for (const c of candidates) {
     seenExternal.add(c.externalId);
     const payload = toPayload(c, source);
@@ -157,10 +181,11 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       continue;
     }
     const fp = fingerprint(payload);
-    const existing = (await repo.findPromotionByExternalId(source.id, c.externalId)) ?? active.find((p) => p.fingerprint === fp) ?? null;
+    const peers = await peersOf(payload.merchantName);
+    const existing = (await repo.findPromotionByExternalId(source.id, c.externalId)) ?? peers.find((p) => p.fingerprint === fp) ?? active.find((p) => p.fingerprint === fp) ?? null;
 
-    // La misma promo ya publicada con otro medio de pago: no se duplica, se propone sumarle el medio de pago.
-    const twin = active.find((p) => p.id !== existing?.id && p.status === "publicada" && p.paymentMethods.length > 0 && payload.paymentMethodSlugs.length > 0 && sameBenefit(payload, p));
+    // La misma promo ya publicada con otro medio de pago: no se duplica, se le suma el medio de pago.
+    const twin = peers.find((p) => p.id !== existing?.id && p.status === "publicada" && p.paymentMethods.length > 0 && payload.paymentMethodSlugs.length > 0 && sameBenefit(payload, p));
 
     // Una copia archivada de esta fuente no cuenta si la promo sigue publicada con otro medio de pago.
     if (existing && !(existing.status === "archivada" && twin)) {
@@ -197,6 +222,14 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
         continue;
       }
       const merged = { ...toPayload({ ...promotionToRaw(twin), paymentMethodSlugs: [...have, ...missing] }, source), sourceUrl: twin.sourceUrl };
+      if (trusted && !(c.flags ?? []).length) {
+        // Fuente oficial sin dudas: se suma el medio de pago directamente, sin pasar por revisión.
+        await repo.updatePromotionFromPayload(twin.id, merged, fingerprint(merged));
+        twin.paymentMethods = [...twin.paymentMethods, ...missing.map((slug) => ({ id: slug, slug, name: slug, kind: "billetera" as const, color: null }))];
+        if (pendingFps.has(fp)) await repo.closeQueued(source.id, fp, twin.id);
+        r.updated++;
+        continue;
+      }
       await queue(merged, fingerprint(merged), {
         flagReasons: [`Es la misma promo que “${twin.title}”: en vez de duplicarla, se le suma ${payload.wallet ?? payload.bank ?? missing.join(", ")} como medio de pago`],
         changeType: "cambio",
@@ -206,18 +239,29 @@ export async function processCandidates(repo: Repo, source: Source, candidates: 
       continue;
     }
 
+    // La misma oferta, con el mismo medio de pago, ya está cargada (otra fuente la cuenta con algún detalle distinto): no se carga de nuevo.
+    const repeated = peers.find((p) => p.id !== existing?.id && p.status === "publicada" && sameOffer(payload, p) && (payload.paymentMethodSlugs.length === 0 || payload.paymentMethodSlugs.every((slug) => p.paymentMethods.some((m) => m.slug === slug))));
+    if (repeated && trusted) {
+      await repo.markVerified(repeated.id);
+      if (pendingFps.has(fp)) await repo.closeQueued(source.id, fp, repeated.id);
+      r.verified++;
+      continue;
+    }
+
     const flags = [...publishProblems(payload), ...(c.flags ?? []), ...sanityFlags(payload)];
     if (source.kind !== "oficial") flags.push("La fuente no es oficial: verificar");
     // Duplicado casi seguro (mismo comercio, tipo, beneficio, fechas y medio de pago, o mismo código) frena; uno apenas parecido es solo una nota.
-    const dups = findDuplicates({ ...payload, fingerprint: fp }, active);
+    const dups = findDuplicates({ ...payload, fingerprint: fp }, peers.length ? peers : active);
     const notes = (c.notes ?? []).map((n) => NOTE_PREFIX + n);
-    if (dups.length && dups[0].score >= 0.9) flags.push(`Posible duplicado de “${dups[0].promotion.title}”`);
+    // En una fuente oficial lo repetido ya se resolvió arriba; lo que queda es otra promo del mismo comercio. Para sugerencias de personas sí se frena.
+    if (dups.length && dups[0].score >= 0.9 && !trusted) flags.push(`Posible duplicado de “${dups[0].promotion.title}”`);
     else if (dups.length) notes.push(`${NOTE_PREFIX}Hay otra promo parecida en el mismo comercio: “${dups[0].promotion.title}”`);
 
     if (trusted && flags.length === 0) {
       try {
         const created = await repo.publishPayload(payload, { fingerprint: fp, sourceId: source.id, actorId: null });
         active.push(created);
+        peers.push(created);
         r.created++;
         // Si estaba esperando revisión de una corrida anterior, ya no hace falta.
         if (pendingFps.has(fp)) await repo.closeQueued(source.id, fp, created.id);
