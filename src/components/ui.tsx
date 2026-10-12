@@ -81,7 +81,7 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "alerta" |
 }
 
 /** Enlace para colaborar con el proyecto (Cafecito, Mercado Pago…). Se puede cambiar con NEXT_PUBLIC_DONATION_URL. */
-const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "https://mpago.la/2Y5BPGp";
+const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "https://cafecito.app/francxgx";
 
 /** Invitación a colaborar: Pesito es gratis y lo mantiene una sola persona. */
 export function SupportCard({ compact = false }: { compact?: boolean }) {
