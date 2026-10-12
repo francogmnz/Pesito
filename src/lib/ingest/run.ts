@@ -15,10 +15,13 @@ export interface RunSummary {
 }
 
 /** Corre todas las fuentes activas con adaptador y después vence las promos terminadas. */
-export async function runAllSources(repo: Repo, opts: { today: string; fetcher?: typeof fetch }): Promise<RunSummary> {
+export async function runAllSources(repo: Repo, opts: { today: string; fetcher?: typeof fetch; /** Leer todas, aunque no les toque (botón «Actualizar ahora»). */ force?: boolean }): Promise<RunSummary> {
   const sum: RunSummary = { sources: 0, created: 0, updated: 0, verified: 0, flagged: 0, discarded: 0, expired: 0, errors: [] };
   const sources = (await repo.listSources()).filter((s) => s.active && s.adapter && (ADAPTERS[s.adapter] || CRAWLERS[s.adapter]));
   for (const source of sources) {
+    // Con el programador cada media hora, las fuentes que cambian poco se leen cada tantas horas (config.everyHours).
+    const every = Number(source.config.everyHours);
+    if (every > 0 && source.lastRunAt && Date.now() - Date.parse(source.lastRunAt) < every * 3_600_000 && !opts.force) continue;
     sum.sources++;
     const startedAt = new Date().toISOString();
     try {

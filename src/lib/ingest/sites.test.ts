@@ -7,6 +7,7 @@ import { ADAPTERS, CRAWLERS } from "./adapters";
 import { robotsDisallows } from "./fetch-page";
 import { findCouponCode, parseDateRange, parseDays, parseSpanishDate } from "./html";
 import { processCandidates } from "./process";
+import { brubankArticleText, brubankCandidate, parseBrubankList } from "./sites/brubank";
 import { parseFarmaonline } from "./sites/farmaonline";
 import { parseMercadoPago } from "./sites/mercadopago";
 import { modoBanks, modoPriority, parseModoPromo, parseModoSitemap } from "./sites/modo";
@@ -330,6 +331,34 @@ describe("Farmaonline", () => {
     expect(c).toMatchObject({ kind: "cupon", paymentMethodSlugs: [], validUntil: "2026-10-12" });
     expect(c.coupon).toMatchObject({ code: "ONSALE" });
     expect(c.flags!.some((f) => f.startsWith("No se reconoció"))).toBe(false);
+  });
+});
+
+describe("Brubank", () => {
+  const cards = parseBrubankList(fixture("brubank"));
+  const article = brubankArticleText(fixture("brubank-articulo"));
+  const card = (merchant: string) => cards.find((c) => c.merchant === merchant)!;
+
+  it("lee las tarjetas con porcentaje de cada plan, sin repetir ni contar las de solo cuotas", () => {
+    expect(cards.map((c) => `${c.plan}: ${c.merchant}`)).toEqual(["Plan Ultra: App YPF", "Plan Ultra: Cerini", "Plan Plus: Farmacity", "Plan Ultra: Cabify"]);
+    expect(card("App YPF")).toMatchObject({ benefit: "10% de reintegro", cap: "Tope de reintegro: $6.000", days: "Todos los lunes" });
+    // El enlace a las condiciones se toma sin los parámetros de seguimiento.
+    expect(card("App YPF").articleUrl).toBe("https://help.brubank.com/es/articles/13003457-todos-los-lunes-10-off-a-traves-de-la-app-ypf-compra-con-tu-tarjeta-de-debito-y-credito-visa-brubank");
+  });
+
+  it("completa vigencia y tope por compra con el artículo de ayuda, y deja el plan a la vista", () => {
+    const c = brubankCandidate(card("App YPF"), article, TODAY);
+    expect(c).toMatchObject({
+      externalId: "brubank:plan-ultra:app-ypf:10", kind: "reintegro", merchantName: "App YPF", title: "10% de reintegro en App YPF con Brubank · Plan Ultra",
+      paymentMethodSlugs: ["brubank"], discountValue: 10, capAmount: 6000, capPeriod: "compra", minPurchase: null, validFrom: "2026-10-01", validUntil: "2026-10-31", daysOfWeek: [1],
+    });
+    expect(c.conditions).toContain("Solo para clientes con Plan Ultra.");
+    expect(c.flags).toBeUndefined();
+  });
+
+  it("sin condiciones enlazadas, o con las de otro comercio, va a revisión", () => {
+    expect(brubankCandidate(card("Cerini"), null, TODAY).flags).toEqual(["La tarjeta no enlaza las condiciones: falta la vigencia."]);
+    expect(brubankCandidate(card("Cerini"), article, TODAY).flags).toEqual(["Las condiciones enlazadas no nombran a este comercio: verificar."]);
   });
 });
 

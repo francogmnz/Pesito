@@ -273,7 +273,7 @@ export async function runAutomationNow(): Promise<AdminState> {
   await requireAdmin();
   try {
     const repo = await getServiceRepo();
-    const result = await runAllSources(repo, { today: todayAR() });
+    const result = await runAllSources(repo, { today: todayAR(), force: true });
     refresh();
     if (result.sources === 0) {
       return { ok: false, message: "No hay fuentes activas. Corré la parte 3 del SQL en Supabase (crea Ualá, PedidosYa y Mercado Pago)." };

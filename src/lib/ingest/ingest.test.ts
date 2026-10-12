@@ -192,6 +192,20 @@ describe("automatización", () => {
     expect(await feed(b, { ...otra, id: "B10", discountValue: 30 })).toMatchObject({ verified: 0, flagged: 1 });
   });
 
+  it("una fuente con everyHours no se lee en todas las corridas, salvo que se fuerce", async () => {
+    const { runAllSources } = await import("./run");
+    const calls: string[] = [];
+    const repo = createMemoryRepo();
+    const src: Source = { ...oficial, adapter: "json-feed", config: { ...config, everyHours: 6 }, lastRunAt: new Date(Date.now() - 3_600_000).toISOString() };
+    repo.listSources = async () => [src];
+    const fetcher = (async (u: string) => { calls.push(String(u)); return new Response(JSON.stringify([feedItem()])); }) as unknown as typeof fetch;
+    expect((await runAllSources(repo, { today, fetcher })).sources).toBe(0);
+    expect(calls).toEqual([]);
+    expect((await runAllSources(repo, { today, fetcher, force: true })).sources).toBe(1);
+    src.lastRunAt = new Date(Date.now() - 7 * 3_600_000).toISOString();
+    expect((await runAllSources(repo, { today, fetcher })).sources).toBe(1);
+  });
+
   it("ignora promos vencidas y avisa si una promo desaparece del feed", async () => {
     const repo = createMemoryRepo();
     const src = { ...oficial, config };

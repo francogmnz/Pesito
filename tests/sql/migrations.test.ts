@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql", "0018_fuente_brubank.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));
@@ -249,7 +249,7 @@ describe("migraciones", () => {
   it("aprobación automática: las fuentes oficiales con lector publican solas; PedidosYa queda pausada y sin publicar", async () => {
     const src = await db.query<{ adapter: string; auto_publish: boolean; active: boolean }>(`select adapter, auto_publish, active from public.sources where adapter is not null order by adapter`);
     const auto = src.rows.filter((r) => r.auto_publish).map((r) => r.adapter);
-    expect(auto).toEqual(["farmaonline", "mercadopago", "modo", "prex", "uala"]);
+    expect(auto).toEqual(["brubank", "farmaonline", "mercadopago", "modo", "prex", "uala"]);
     expect(src.rows.find((r) => r.adapter === "pedidosya")).toMatchObject({ auto_publish: false, active: false });
     const col = await db.query(`select 1 from information_schema.columns where table_name = 'promotions' and column_name = 'manual_edit_at'`);
     expect(col.rows).toHaveLength(1);
