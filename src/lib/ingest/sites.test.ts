@@ -10,6 +10,7 @@ import { processCandidates } from "./process";
 import { beloCandidate, fetchBelo, parseBeloList, parseShortDate } from "./sites/belo";
 import { brubankArticleText, brubankCandidate, parseBrubankList } from "./sites/brubank";
 import { parseFarmaonline } from "./sites/farmaonline";
+import { parseDayText, parseGetTheLook } from "./sites/getthelook";
 import { parseMercadoPago } from "./sites/mercadopago";
 import { modoBanks, modoPriority, parseModoPromo, parseModoSitemap } from "./sites/modo";
 import { parsePedidosYa } from "./sites/pedidosya";
@@ -367,6 +368,38 @@ describe("Belo", () => {
     const out = await fetchBelo(src, fetcher);
     expect(out.map((c) => c.externalId)).toEqual(["belo:ypf-10", "belo:airalo"]);
     expect(out[1].flags).toEqual(["No se pudo leer la página del beneficio: faltan tope y condiciones."]);
+  });
+});
+
+describe("Get The Look (medios de pago)", () => {
+  const list = parseGetTheLook(fixture("getthelook-medios"), TODAY);
+  const by = (id: string) => list.find((c) => c.externalId === id)!;
+
+  it("entiende los días abreviados y los rangos", () => {
+    expect(parseDayText("Jueves")).toEqual([4]);
+    expect(parseDayText("DDM- Sab y Dom")).toEqual([0, 6]);
+    expect(parseDayText("DDM - Jue a Dom")).toEqual([0, 4, 5, 6]);
+    expect(parseDayText("Todos los días")).toBeNull();
+  });
+
+  it("deja una promo por banco y texto, sin las filas de solo cuotas", () => {
+    expect(list.map((c) => c.externalId)).toEqual(["getthelook:icbc:20:5", "getthelook:banco-nacion:35:todos", "getthelook:galicia:25:06", "getthelook:x:20:4", "getthelook:banco-del-sol:20:3", "getthelook:naranja-x:30:3"]);
+    expect(list.every((c) => c.merchantName === "Get The Look" && c.categorySlug === "belleza")).toBe(true);
+  });
+
+  it("saca día, tope con su período, canal y vigencia de los legales", () => {
+    expect(by("getthelook:icbc:20:5")).toMatchObject({ title: "20% de reintegro en Get The Look con ICBC", paymentMethodSlugs: ["icbc"], discountValue: 20, capAmount: 6000, capPeriod: "semana", daysOfWeek: [5], channel: "ambos", validFrom: "2025-10-01", validUntil: "2027-03-31" });
+    expect(by("getthelook:icbc:20:5").flags).toBeUndefined();
+    // Fechas con puntos ("12.10.2026 al 18.10.2026") y tope por transacción.
+    expect(by("getthelook:banco-nacion:35:todos")).toMatchObject({ capAmount: 35000, capPeriod: "compra", validFrom: "2026-10-12", validUntil: "2026-10-18" });
+    // Miles con coma ("$15,000 por día").
+    expect(by("getthelook:naranja-x:30:3")).toMatchObject({ capAmount: 15000, capPeriod: "dia", channel: "online" });
+  });
+
+  it("avisa segmentos y bancos que no están en el catálogo", () => {
+    expect(by("getthelook:galicia:25:06").flags).toEqual(["Puede ser solo para un segmento de clientes (“EMINET”)."]);
+    expect(by("getthelook:x:20:4").flags).toEqual(["No se reconoció el medio de pago (“COINAG”)."]);
+    expect(by("getthelook:banco-del-sol:20:3").paymentMethodSlugs).toEqual(["banco-del-sol"]);
   });
 });
 

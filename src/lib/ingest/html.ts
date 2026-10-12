@@ -144,7 +144,7 @@ export function parseDateRange(s: string | null | undefined, today: string): { f
   return { from: null, until: single ? parseSpanishDate(single[1], today) : parseSpanishDate(t, today) };
 }
 
-const VALIDITY = /v[aá]lid[ao]s?\b|promoci[oó]n vigente|vigencia de la promoci[oó]n/gi;
+const VALIDITY = /v[aá]lid[ao]s?\b|promoci[oó]n vigente|vigencia\b/gi;
 const MONTH_RE = Object.keys(MONTH_INDEX).join("|");
 const lastDay = (y: number, month: number) => new Date(Date.UTC(y, month, 0)).getUTCDate();
 

@@ -7,6 +7,7 @@ import { fetchBelo } from "./sites/belo";
 import { fetchBrubank } from "./sites/brubank";
 import { decodeEntities } from "./html";
 import { FARMAONLINE_URL, parseFarmaonline } from "./sites/farmaonline";
+import { GETTHELOOK_PROMOS_URL, parseGetTheLook } from "./sites/getthelook";
 import { MERCADOPAGO_URL, parseMercadoPago } from "./sites/mercadopago";
 import { modoCrawler } from "./sites/modo";
 import { parsePedidosYa, PEDIDOSYA_URL } from "./sites/pedidosya";
@@ -141,6 +142,7 @@ export const ADAPTERS: Record<string, Adapter> = {
   pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
   mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
   farmaonline: pageAdapter("farmaonline", FARMAONLINE_URL, parseFarmaonline),
+  getthelook: pageAdapter("getthelook", GETTHELOOK_PROMOS_URL, parseGetTheLook),
   // Belo: el listado de beneficios y la página de cada uno.
   belo: {
     name: "belo",
