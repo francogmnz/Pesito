@@ -67,7 +67,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
   `);
-  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql", "0018_fuente_brubank.sql", "0019_fuente_belo.sql", "0020_fuente_getthelook_promos.sql", "0021_limpieza_y_cupones_sin_enlace.sql"]) {
+  for (const f of ["0001_base.sql", "0002_nuevos_valores.sql", "0003_cupones_cumple_sugerencias.sql", "0005_publicacion.sql", "0006_fuentes_y_bancos.sql", "0008_modo_por_tandas.sql", "0009_fuente_prex.sql", "0010_pausar_pedidosya.sql", "0011_fuente_farmaonline.sql", "0012_aprobacion_automatica.sql", "0013_modo_vigentes_primero.sql", "0014_productos_precios.sql", "0015_precios_getthelook.sql", "0016_comercios_con_precios.sql", "0017_precios_farmaplus_pigmento.sql", "0018_fuente_brubank.sql", "0019_fuente_belo.sql", "0020_fuente_getthelook_promos.sql", "0021_limpieza_y_cupones_sin_enlace.sql", "0022_promos_de_tiendas_mas_seguido.sql"]) {
     await db.exec(sql(`migrations/${f}`));
   }
   await db.exec(sql("seed.sql"));

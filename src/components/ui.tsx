@@ -80,7 +80,7 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "alerta" |
   );
 }
 
-/** Enlace de Mercado Pago para colaborar con el proyecto. Se puede cambiar con NEXT_PUBLIC_DONATION_URL. */
+/** Enlace para colaborar con el proyecto (Cafecito, Mercado Pago…). Se puede cambiar con NEXT_PUBLIC_DONATION_URL. */
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "https://mpago.la/2Y5BPGp";
 
 /** Invitación a colaborar: Pesito es gratis y lo mantiene una sola persona. */
@@ -93,7 +93,7 @@ export function SupportCard({ compact = false }: { compact?: boolean }) {
       </span>
       <span className="min-w-0 flex-1">
         <b className="block text-[15px] leading-tight">Apoyá a Pesito</b>
-        <span className="text-sm text-tinta-2">{compact ? "Es gratis y sin publicidad. Si te sirve, invitame un cafecito." : "Pesito es gratis y sin publicidad. Si te ayudó a ahorrar, podés colaborar con lo que quieras por Mercado Pago."}</span>
+        <span className="text-sm text-tinta-2">{compact ? "Es gratis y sin publicidad. Si te sirve, invitame un cafecito." : "Pesito es gratis y sin publicidad. Si te ayudó a ahorrar, podés invitarme un cafecito con lo que quieras."}</span>
       </span>
       <Icon name="external" size={18} className="shrink-0 text-tenue" />
     </a>
