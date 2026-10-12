@@ -80,6 +80,26 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "alerta" |
   );
 }
 
+/** Enlace de Mercado Pago para colaborar con el proyecto. Se puede cambiar con NEXT_PUBLIC_DONATION_URL. */
+const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "https://mpago.la/2Y5BPGp";
+
+/** Invitación a colaborar: Pesito es gratis y lo mantiene una sola persona. */
+export function SupportCard({ compact = false }: { compact?: boolean }) {
+  if (!/^https:\/\//.test(DONATION_URL)) return null;
+  return (
+    <a href={DONATION_URL} target="_blank" rel="noopener noreferrer" className={`tarjeta flex items-center gap-3 ${compact ? "p-3" : "p-4"}`}>
+      <span className="grid size-11 shrink-0 place-items-center rounded-full bg-lima text-bosque">
+        <Icon name="heart" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] leading-tight">Apoyá a Pesito</b>
+        <span className="text-sm text-tinta-2">{compact ? "Es gratis y sin publicidad. Si te sirve, invitame un cafecito." : "Pesito es gratis y sin publicidad. Si te ayudó a ahorrar, podés colaborar con lo que quieras por Mercado Pago."}</span>
+      </span>
+      <Icon name="external" size={18} className="shrink-0 text-tenue" />
+    </a>
+  );
+}
+
 /** Letra chica al pie de una pantalla: de dónde salen los datos y qué no garantiza Pesito. */
 export function FinePrint({ children }: { children: React.ReactNode }) {
   return <p className="mt-6 text-[11px] leading-snug text-tenue">{children}</p>;

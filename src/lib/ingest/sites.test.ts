@@ -7,6 +7,7 @@ import { ADAPTERS, CRAWLERS } from "./adapters";
 import { robotsDisallows } from "./fetch-page";
 import { findCouponCode, parseDateRange, parseDays, parseSpanishDate } from "./html";
 import { processCandidates } from "./process";
+import { beloCandidate, fetchBelo, parseBeloList, parseShortDate } from "./sites/belo";
 import { brubankArticleText, brubankCandidate, parseBrubankList } from "./sites/brubank";
 import { parseFarmaonline } from "./sites/farmaonline";
 import { parseMercadoPago } from "./sites/mercadopago";
@@ -331,6 +332,41 @@ describe("Farmaonline", () => {
     expect(c).toMatchObject({ kind: "cupon", paymentMethodSlugs: [], validUntil: "2026-10-12" });
     expect(c.coupon).toMatchObject({ code: "ONSALE" });
     expect(c.flags!.some((f) => f.startsWith("No se reconoció"))).toBe(false);
+  });
+});
+
+describe("Belo", () => {
+  const cards = parseBeloList(fixture("belo"));
+
+  it("lee una tarjeta por beneficio con porcentaje, aunque venga repetida para cada tamaño de pantalla", () => {
+    expect(cards.map((c) => c.slug)).toEqual(["ypf-10", "airalo", "slack"]);
+    expect(cards[0]).toMatchObject({ merchant: "YPF", benefit: "10% de reintegro pagando con tu Mastercard", until: "31 oct 2026" });
+    expect(parseShortDate("Válido hasta el 30 sept 2026")).toBe("2026-09-30");
+  });
+
+  it("saca tope, mínimo y día de la mecánica de cada beneficio", () => {
+    const c = beloCandidate(cards[0], fixture("belo-ypf"));
+    expect(c).toMatchObject({
+      externalId: "belo:ypf-10", kind: "reintegro", merchantName: "YPF", title: "10% de reintegro en YPF con Belo", paymentMethodSlugs: ["belo"],
+      discountValue: 10, capAmount: 6000, capPeriod: "semana", minPurchase: 35000, validUntil: "2026-10-31", daysOfWeek: [1], sourceUrl: "https://www.belo.app/ar/beneficios/ypf-10",
+    });
+    expect(c.flags).toBeUndefined();
+    expect(c.conditions).toContain("Tope de reintegro: $6.000 por semana");
+  });
+
+  it("no carga los convenios sin fecha ni mecánica, y una página que falla manda la promo a revisión", async () => {
+    const src: Source = { id: "src-belo", name: "Belo", url: "https://www.belo.app/ar/beneficios", kind: "oficial", active: true, adapter: "belo", config: { delayMs: 0 }, autoPublish: true, lastRunAt: null };
+    const fetcher = (async (u: string) => {
+      const p = String(u).replace("https://www.belo.app", "");
+      if (p === "/robots.txt") return new Response("User-agent: *\nAllow: /\n");
+      if (p === "/ar/beneficios") return new Response(fixture("belo"));
+      if (p === "/ar/beneficios/ypf-10") return new Response(fixture("belo-ypf"));
+      if (p === "/ar/beneficios/slack") return new Response("<html><body><h1>Slack</h1><p>25% OFF en Slack Pro</p><p>Volver a Beneficios</p></body></html>");
+      return new Response("no", { status: 500 });
+    }) as unknown as typeof fetch;
+    const out = await fetchBelo(src, fetcher);
+    expect(out.map((c) => c.externalId)).toEqual(["belo:ypf-10", "belo:airalo"]);
+    expect(out[1].flags).toEqual(["No se pudo leer la página del beneficio: faltan tope y condiciones."]);
   });
 });
 

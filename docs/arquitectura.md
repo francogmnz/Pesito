@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank · 0019 fuente Belo
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -99,6 +99,7 @@ Para agregar una fuente: fila en `sources` con `url` https, `kind`, `adapter = '
 | Mercado Pago · `promociones.mercadopago.com.ar` | `mercadopago` | HTML de WordPress: solo promos con % (las de cuotas o 2x1 se ignoran por ahora) |
 | Prex · `prexcard.com.ar/promociones` | `prex` | Listado (`__NEXT_DATA__`) + la página de cada promo (unas 15, con pausa): %, tope, mínimo, días, vigencia y código salen del texto y los términos. Lo que no tiene % (transferencias sin comisión, asistencia sin costo) no se carga. Si una página falla, la corrida entera da error |
 | Farmaonline · `farmaonline.com/promociones-bancarias` | `farmaonline` | Tarjetas ya armadas en el HTML (VTEX): titular + texto legal. El banco es un logo, así que se deduce del legal (`ingest/payment-names.ts`); tope, mínimo, días y vigencia salen del texto. Las de solo cuotas se saltean |
+| Belo · `belo.app/ar/beneficios` | `belo` | Listado (Framer, una tarjeta repetida por tamaño de pantalla) + la página de cada beneficio: «Mecánica» (porcentaje, tope, mínimo), «Vigencia» (días) y vencimiento de la tarjeta. Los convenios sin fecha ni mecánica no se cargan. Cada 12 h |
 | Brubank · `brubank.com/beneficios` | `brubank` | Tarjetas del carrusel por plan (One, Plus, Ultra): beneficio, comercio, tope y días. Vigencia, período del tope y términos salen del artículo de ayuda que enlaza cada tarjeta (`help.brubank.com`, con la pausa de 1 s que pide su robots). Sin artículo, va a revisión. Se lee cada 12 h (`config.everyHours`) |
 | MODO · `modo.com.ar/promos/{slug}` | `modo` | Por tandas: sitemap + página pública de cada promo (datos embebidos del App Router). Ver abajo |
 
