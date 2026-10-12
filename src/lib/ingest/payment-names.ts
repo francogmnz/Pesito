@@ -32,6 +32,7 @@ const TABLE: (NamedPayment & { re: RegExp })[] = [
   { slug: "banco-santa-cruz", name: "Banco Santa Cruz", re: /\bbanco (de )?santa cruz\b/ },
   { slug: "bancor", name: "Bancor", re: /\bbancor\b|\bbanco de cordoba\b/ },
   { slug: "reba", name: "Reba", re: /\breba\b/ },
+  { slug: "banco-del-sol", name: "Banco del Sol", re: /\bbanco del sol\b/ },
   { slug: "naranja-x", name: "Naranja X", re: /\bnaranja( ?x)?\b/ },
   { slug: "mercado-pago", name: "Mercado Pago", re: /\bmercado ?pago\b/ },
   { slug: "uala", name: "Ualá", re: /\buala\b/ },
