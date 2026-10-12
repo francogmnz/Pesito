@@ -3,6 +3,7 @@ import { isValidISODate, todayAR } from "@/lib/domain/dates";
 import type { PromoPayload, Source } from "@/lib/domain/types";
 import { isSafePublicUrl } from "@/lib/domain/validation";
 import { fetchPage } from "./fetch-page";
+import { fetchBelo } from "./sites/belo";
 import { fetchBrubank } from "./sites/brubank";
 import { decodeEntities } from "./html";
 import { FARMAONLINE_URL, parseFarmaonline } from "./sites/farmaonline";
@@ -140,6 +141,11 @@ export const ADAPTERS: Record<string, Adapter> = {
   pedidosya: pageAdapter("pedidosya", PEDIDOSYA_URL, (html) => parsePedidosYa(html)),
   mercadopago: pageAdapter("mercadopago", MERCADOPAGO_URL, parseMercadoPago),
   farmaonline: pageAdapter("farmaonline", FARMAONLINE_URL, parseFarmaonline),
+  // Belo: el listado de beneficios y la página de cada uno.
+  belo: {
+    name: "belo",
+    fetchCandidates: async (source, fetcher = fetch) => (await fetchBelo(source, fetcher)).map((c) => normalizeRaw(c as Record<string, unknown> & { externalId: string })),
+  },
   // Brubank: la página de beneficios y el artículo de ayuda de cada promo.
   brubank: {
     name: "brubank",
