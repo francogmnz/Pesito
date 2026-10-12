@@ -145,6 +145,28 @@ describe("automatización", () => {
     expect((await find()).status).toBe("archivada");
   });
 
+  it("fuentes oficiales: lo repetido no vuelve a revisión; se suma el medio de pago o se descarta solo", async () => {
+    const repo = createMemoryRepo();
+    const a = { ...oficial, config };
+    const b: Source = { ...oficial, id: "src-b", name: "Otra fuente oficial", config };
+    const feed = async (src: Source, item: Record<string, unknown>) => processCandidates(repo, src, await jsonFeedAdapter.fetchCandidates(src, fakeFetch([item])), { today });
+    const glaciar = async () => (await repo.listPromotions({ statuses: ["publicada"], limit: 1000 })).filter((p) => p.merchant.name === "Heladería Glaciar");
+    await feed(a, feedItem());
+
+    // Misma promo, otra billetera: se suma el medio de pago sin pasar por revisión.
+    expect(await feed(b, feedItem({ id: "B1", paymentMethodSlugs: ["uala"] }))).toMatchObject({ created: 0, updated: 1, flagged: 0 });
+    expect((await glaciar()).map((p) => p.paymentMethods.map((m) => m.slug).sort())).toEqual([["modo", "uala"]]);
+
+    // La misma oferta con el mismo medio de pago y otra fecha de fin: ya está, no se carga de nuevo ni se encola.
+    expect(await feed(b, feedItem({ id: "B2", validUntil: addDaysISO(today, 12) }))).toMatchObject({ created: 0, updated: 0, verified: 1, flagged: 0 });
+    expect(await glaciar()).toHaveLength(1);
+
+    // Otro tope en el mismo comercio y con el mismo medio de pago: es otra promo y se publica.
+    expect(await feed(b, feedItem({ id: "B3", capAmount: 9000 }))).toMatchObject({ created: 1, flagged: 0 });
+    expect(await glaciar()).toHaveLength(2);
+    expect((await repo.listSubmissions({ status: "pendiente", origin: "automatizacion" })).filter((x) => x.payload.merchantName === "Heladería Glaciar")).toHaveLength(0);
+  });
+
   it("la misma promo en otra billetera no se duplica: se propone sumar el medio de pago", async () => {
     const repo = createMemoryRepo();
     const a = { ...oficial, config };
