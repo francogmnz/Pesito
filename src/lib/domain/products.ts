@@ -16,6 +16,8 @@ export interface Listing {
   /** Última vez que se leyó bien la página del comercio. */
   lastOkAt: string;
   priceChangedAt: string;
+  /** Cambios de precio registrados (del más viejo al más nuevo). Sirve para saber si una oferta es de verdad. */
+  history?: { price: number; at: string }[];
 }
 
 export interface Product {
@@ -79,6 +81,33 @@ export function priceAge(lastOkAt: string, now: Date = new Date()): { hours: num
   const stale = hours > 120;
   const label = hours < 1 ? "verificado hace menos de una hora" : hours < 24 ? `verificado hace ${Math.round(hours)} h` : `verificado hace ${Math.round(hours / 24)} ${Math.round(hours / 24) === 1 ? "día" : "días"}`;
   return { hours, stale, label: stale ? `${label}: puede estar desactualizado` : label };
+}
+
+export interface PriceTrend {
+  tone: "bueno" | "neutro" | "malo";
+  text: string;
+}
+
+/**
+ * Qué dice el historial sobre el precio de hoy: si es el más bajo que vimos, si bajó o subió hace poco,
+ * o si el "precio de lista" tachado nunca se cobró desde que lo seguimos. Sin datos suficientes, null.
+ */
+export function priceTrend(l: Listing, now: Date = new Date()): PriceTrend | null {
+  const h = (l.history ?? []).filter((x) => x.price > 0);
+  if (!h.length) return null;
+  const days = Math.floor((now.getTime() - new Date(h[0].at).getTime()) / 86_400_000);
+  const since = days >= 1 ? `${days} ${days === 1 ? "día" : "días"}` : "hoy";
+  const before = h.filter((x) => x.price !== l.price);
+  if (!before.length) {
+    // Nunca cambió: si muestra un precio tachado, hace cuánto que lo vemos "en oferta".
+    return days >= 7 && l.listPrice ? { tone: "neutro", text: `Lo vemos a este precio desde hace ${since}: la rebaja sobre el precio tachado no es nueva.` } : null;
+  }
+  const prev = before[before.length - 1];
+  const lowest = Math.min(...h.map((x) => x.price));
+  const pct = Math.round((Math.abs(l.price - prev.price) / prev.price) * 100);
+  if (l.price <= lowest && l.price < prev.price) return { tone: "bueno", text: `Es el precio más bajo desde que lo seguimos (${since}). Antes estaba ${pct}% más caro.` };
+  if (l.price < prev.price) return { tone: "bueno", text: `Bajó ${pct}% respecto del precio anterior, pero ya estuvo más barato.` };
+  return { tone: "malo", text: `Subió ${pct}% respecto del precio anterior.` };
 }
 
 export interface Comparison {

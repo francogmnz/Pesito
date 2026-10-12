@@ -590,7 +590,9 @@ export function createMemoryRepo(): Repo {
       const st = s();
       const p = [...st.products.values()].find((x) => x.id === id);
       if (!p) return null;
-      const listings = [...st.listings.values()].filter((l) => l.ean === p.ean).map((l) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt }));
+      const listings = [...st.listings.entries()]
+        .filter(([, l]) => l.ean === p.ean)
+        .map(([key, l]) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt, history: st.priceHistory.filter((x) => x.key === key).map((x) => ({ price: x.price, at: x.at })) }));
       return { product: { id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl }, listings };
     },
     async priceMerchants() {

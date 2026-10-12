@@ -521,10 +521,15 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       const { data: p, error } = await db.from("products").select("id, ean, brand, name, category, image_url").eq("id", id).maybeSingle();
       if (error) throw friendlyDbError(error);
       if (!p) return null;
-      const rows = await must(db.from("merchant_products").select("url, title, price, list_price, in_stock, last_ok_at, price_changed_at, merchant:merchants!inner ( slug, name )").eq("product_id", id));
+      const rows = await must(db.from("merchant_products").select("id, url, title, price, list_price, in_stock, last_ok_at, price_changed_at, merchant:merchants!inner ( slug, name )").eq("product_id", id));
+      // Historial de los últimos 90 días de cada publicación, para mostrar si el precio bajó o subió.
+      const ids = (rows as Row[]).map((r) => r.id as string);
+      const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
+      const hist = ids.length ? ((await must(db.from("price_history").select("merchant_product_id, price, at").in("merchant_product_id", ids).gte("at", since).order("at").limit(2000))) as Row[]) : [];
       const listings = (rows as Row[]).map((r): Listing => {
         const m = one(r.merchant) as Row;
-        return { merchantSlug: m.slug, merchantName: m.name, url: r.url, title: r.title, price: Number(r.price), listPrice: r.list_price == null ? null : Number(r.list_price), inStock: r.in_stock, lastOkAt: r.last_ok_at, priceChangedAt: r.price_changed_at };
+        return {
+          history: hist.filter((x) => x.merchant_product_id === r.id).map((x) => ({ price: Number(x.price), at: x.at as string })), merchantSlug: m.slug, merchantName: m.name, url: r.url, title: r.title, price: Number(r.price), listPrice: r.list_price == null ? null : Number(r.list_price), inStock: r.in_stock, lastOkAt: r.last_ok_at, priceChangedAt: r.price_changed_at };
       });
       return { product: toProduct(p as Row), listings };
     },
