@@ -492,10 +492,14 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     async upsertListing(input) {
       return (await must(db.rpc("upsert_listing", { p: { ...input, search: normalizeText(`${input.brand ?? ""} ${input.title}`) } }))) as "nuevo" | "cambio" | "igual";
     },
-    async searchProducts(q, limit = 30) {
-      let query = db.from("product_summaries").select("id, ean, brand, name, category, image_url, stores, min_price, max_price").gt("stores", 0);
+    async searchProducts(q, o = {}) {
+      const limit = o.limit ?? 30;
+      let query = db.from("product_summaries").select("id, ean, brand, name, category, image_url, stores, min_price, max_price").gt("stores", o.comparable ? 1 : 0);
+      if (o.minPrice != null) query = query.gte("min_price", o.minPrice);
+      if (o.maxPrice != null) query = query.lte("min_price", o.maxPrice);
       for (const term of normalizeText(q).split(" ").filter(Boolean).slice(0, 6)) query = query.ilike("search", `%${term.replace(/[%_]/g, "")}%`);
-      const rows = await must(query.order("stores", { ascending: false }).order("name").limit(limit));
+      const sorted = o.sort === "menor" ? query.order("min_price", { ascending: true }) : o.sort === "mayor" ? query.order("min_price", { ascending: false }) : query.order("stores", { ascending: false });
+      const rows = await must(sorted.order("name").order("id").range(o.offset ?? 0, (o.offset ?? 0) + limit - 1));
       return (rows as Row[]).map((r): ProductSummary => ({ ...toProduct(r), stores: r.stores, minPrice: Number(r.min_price), maxPrice: Number(r.max_price) }));
     },
     async getProduct(id) {
