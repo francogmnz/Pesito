@@ -494,6 +494,21 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
     },
     async searchProducts(q, o = {}) {
       const limit = o.limit ?? 30;
+      const terms = normalizeText(q).split(" ").filter(Boolean).slice(0, 6).map((t) => `%${t.replace(/[%_]/g, "")}%`);
+      const cols = "id, ean, brand, name, category, image_url, stores, min_price, max_price";
+      const toSummary = (r: Row): ProductSummary => ({ ...toProduct(r), stores: r.stores, minPrice: Number(r.min_price), maxPrice: Number(r.max_price) });
+      if (o.merchantSlug) {
+        // Primero las publicaciones de ese comercio (ahí se filtra y ordena); después el resumen de cada producto.
+        let mq = db.from("merchant_products").select("price, product:products!inner ( id, search ), merchant:merchants!inner ( slug )").eq("merchant.slug", o.merchantSlug).eq("in_stock", true);
+        for (const t of terms) mq = mq.ilike("product.search", t);
+        if (o.minPrice != null) mq = mq.gte("price", o.minPrice);
+        if (o.maxPrice != null) mq = mq.lte("price", o.maxPrice);
+        const listed = (await must(mq.order("price", { ascending: o.sort !== "mayor" }).order("id").range(o.offset ?? 0, (o.offset ?? 0) + limit - 1))) as Row[];
+        const ids = listed.map((r) => (one(r.product) as Row).id as string);
+        if (!ids.length) return [];
+        const byId = new Map(((await must(db.from("product_summaries").select(cols).in("id", ids))) as Row[]).map((r) => [r.id as string, toSummary(r)]));
+        return ids.flatMap((id) => (byId.has(id) && (!o.comparable || byId.get(id)!.stores > 1) ? [byId.get(id)!] : []));
+      }
       let query = db.from("product_summaries").select("id, ean, brand, name, category, image_url, stores, min_price, max_price").gt("stores", o.comparable ? 1 : 0);
       if (o.minPrice != null) query = query.gte("min_price", o.minPrice);
       if (o.maxPrice != null) query = query.lte("min_price", o.maxPrice);
@@ -512,6 +527,11 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
         return { merchantSlug: m.slug, merchantName: m.name, url: r.url, title: r.title, price: Number(r.price), listPrice: r.list_price == null ? null : Number(r.list_price), inStock: r.in_stock, lastOkAt: r.last_ok_at, priceChangedAt: r.price_changed_at };
       });
       return { product: toProduct(p as Row), listings };
+    },
+    async priceMerchants() {
+      // La vista llega con la migración 0016: si todavía no está, la pantalla funciona igual sin los comercios.
+      const { data, error } = await db.from("price_merchants").select("slug, name, products").order("products", { ascending: false });
+      return error || !data ? [] : (data as Row[]).map((r) => ({ slug: r.slug, name: r.name, products: r.products }));
     },
     async priceStats() {
       const [products, listings, comparable] = await Promise.all([

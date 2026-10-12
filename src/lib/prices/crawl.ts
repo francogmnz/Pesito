@@ -7,7 +7,7 @@ import { parseVtexProduct, parseVtexProductSitemap, parseVtexSitemapIndex } from
 /** Adaptador de las fuentes de precios (tiendas VTEX). Las corre `runPriceSources`, no la actualización de promos. */
 export const PRICE_ADAPTER = "vtex-precios";
 
-/** Rubros con los que arranca «¿Dónde conviene?»: perfumería, dermocosmética y cuidado personal. */
+/** Rubros con los que arranca «Comparar precios»: perfumería, dermocosmética y cuidado personal. */
 const DEFAULT_SCOPE = "dermocosm|cuidado personal|cuidado de la piel|cuidado del cabello|cuidado capilar|perfum|fragancia|maquillaje|belleza|solares|higiene";
 
 const DAY_MS = 86_400_000;

@@ -8,7 +8,7 @@ import { todayAR } from "@/lib/domain/dates";
 import { formatARS } from "@/lib/domain/money";
 import { compareListings, priceAge, type Listing } from "@/lib/domain/products";
 
-export const metadata = { title: "¿Dónde conviene?" };
+export const metadata = { title: "Comparar precios" };
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -67,7 +67,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
-      <PageHeader title="¿Dónde conviene?" back="/conviene" />
+      <PageHeader title="Comparar precios" back="/conviene" />
       <div className="tarjeta mb-3 flex items-center gap-3 p-3">
         <span className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-white">
           {product.imageUrl ? (
