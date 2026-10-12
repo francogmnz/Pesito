@@ -533,6 +533,17 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       });
       return { product: toProduct(p as Row), listings };
     },
+    async priceHealth() {
+      const ago = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+      const count = (q: PromiseLike<{ count: number | null }>) => q.then((r) => r.count ?? 0);
+      const [stale, outOfStock, changed24h] = await Promise.all([
+        count(db.from("merchant_products").select("id", { count: "exact", head: true }).lt("last_ok_at", ago(120))),
+        count(db.from("merchant_products").select("id", { count: "exact", head: true }).eq("in_stock", false)),
+        // Las recién cargadas no cuentan como cambio: tienen que existir desde antes.
+        count(db.from("merchant_products").select("id", { count: "exact", head: true }).gte("price_changed_at", ago(24)).lt("created_at", ago(24))),
+      ]);
+      return { stale, outOfStock, changed24h };
+    },
     async cleanup() {
       // La función llega con la migración 0021: si todavía no está, no pasa nada.
       await db.rpc("cleanup_old_data");

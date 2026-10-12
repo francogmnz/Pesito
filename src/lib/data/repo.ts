@@ -73,6 +73,15 @@ export interface SourceRecordPatch {
 }
 
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
+/** Salud de los precios cargados, para el panel. */
+export interface PriceHealth {
+  /** Publicaciones sin verificar hace más de 5 días. */
+  stale: number;
+  outOfStock: number;
+  /** Publicaciones cuyo precio cambió en las últimas 24 horas. */
+  changed24h: number;
+}
+
 export interface ProductSearch {
   limit?: number;
   offset?: number;
@@ -182,6 +191,7 @@ export interface Repo {
   getProduct(id: string): Promise<{ product: Product; listings: Listing[] } | null>;
   priceStats(): Promise<PriceStats>;
   priceMerchants(): Promise<PriceMerchant[]>;
+  priceHealth(): Promise<PriceHealth>;
 
   /** Borra lo que ya no sirve (historial de precios viejo, corridas viejas) para que la base no crezca sin límite. */
   cleanup(): Promise<void>;
