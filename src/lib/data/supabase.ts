@@ -533,6 +533,10 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
       });
       return { product: toProduct(p as Row), listings };
     },
+    async cleanup() {
+      // La función llega con la migración 0021: si todavía no está, no pasa nada.
+      await db.rpc("cleanup_old_data");
+    },
     async priceMerchants() {
       // La vista llega con la migración 0016: si todavía no está, la pantalla funciona igual sin los comercios.
       const { data, error } = await db.from("price_merchants").select("slug, name, products").order("products", { ascending: false });

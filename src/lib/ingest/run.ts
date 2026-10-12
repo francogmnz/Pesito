@@ -45,5 +45,7 @@ export async function runAllSources(repo: Repo, opts: { today: string; fetcher?:
     }
   }
   sum.expired = await repo.expirePromotions(opts.today);
+  // La limpieza nunca frena una corrida: si falla, se reintenta en la próxima.
+  await repo.cleanup().catch(() => undefined);
   return sum;
 }

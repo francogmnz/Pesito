@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank · 0019 fuente Belo · 0020 promos de Get The Look
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank · 0019 fuente Belo · 0020 promos de Get The Look · 0021 limpieza y cupones sin enlace
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -119,7 +119,10 @@ Compara el mismo producto entre comercios. Arranca con perfumería, dermocosmét
 - **Lectura** (`prices/vtex.ts`, `prices/crawl.ts`): sitemap de productos → página pública de cada producto, por tandas, con la misma cola `source_records` de MODO. Lo que es de otro rubro, no tiene código de barras o tiene varias presentaciones en una página se marca y no se relee. Los precios se revisan cada 72 h; después de 5 días sin verificar se muestran como «puede estar desactualizado».
 - **Corre aparte**: `/api/cron/precios` (adaptador `vtex-precios`), llamado por el mismo workflow de GitHub. No pasa por la actualización de promos.
 - **Pantallas**: `/conviene` (buscador) y `/conviene/[id]` (comparación). El costo con promo bancaria usa `compareForMerchant` del motor existente y se muestra siempre como estimación.
-- **Pendiente**: coincidencias por nombre para revisar a mano, más comercios, productos con varias presentaciones, sección de precios en el panel.
+- **Varias presentaciones**: una página con tonos o tamaños carga cada presentación con su código de barras (clave `slug#ean`).
+- **Tendencia** (`priceTrend`): con el historial dice si el precio de hoy es el más bajo visto, si subió o si la rebaja tachada no es nueva.
+- **Limpieza** (`cleanup_old_data()`, la llama cada corrida de promos): historial de precios con detalle de 90 días y un registro por semana de lo anterior; corridas, 30 días. Las páginas ya leídas de `source_records` no se borran: son la memoria de qué no hay que releer.
+- **Pendiente**: coincidencias por nombre para revisar a mano, más comercios, sección de precios en el panel.
 
 ### Aprobación automática (0012)
 
@@ -136,6 +139,10 @@ Revisión agrupa la cola por fuente y por motivo; filtrando por un motivo se pue
 ### Panel → Promos
 
 `/admin/promos` lista lo ya cargado (publicadas, pausadas, vencidas, archivadas) con buscador; `/admin/promos/[id]` edita con el mismo formulario de Revisión (`EditPayloadForm` con `save`) y cambia el estado; `/admin/promos/nueva` carga y publica a mano. Archivar no borra. El identificador de la fuente (`external_id`) no se edita: es lo que evita que el lector la vuelva a cargar.
+
+### Carga rápida y «Se terminan pronto»
+
+`/admin/promos/rapida` publica un cupón con lo mínimo (comercio, descuento, código y fecha); el enlace es opcional, porque un cupón visto en redes puede no tener página (`publishProblems` y la restricción `promotions_publicada_con_fuente` lo permiten solo para cupones). El Inicio muestra en «Se terminan pronto» lo que vence en 3 días o menos.
 
 ### La misma promo en varias billeteras
 

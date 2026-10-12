@@ -19,7 +19,7 @@ export interface PriceCrawlResult {
   created: number;
   changed: number;
   same: number;
-  /** Leídas pero fuera de alcance: otro rubro, sin código de barras válido, sin precio o con varias presentaciones. */
+  /** Leídas pero fuera de alcance: otro rubro, sin código de barras válido o sin precio. */
   skipped: number;
   errors: number;
 }
@@ -96,33 +96,40 @@ export async function crawlPrices(ctx: { repo: Repo; source: Source; fetcher?: t
     streak = 0;
     out.checked++;
     const p = parseVtexProduct(html);
-    const item = p && p.items.length === 1 ? p.items[0] : null;
-    // Fuera de alcance: otro rubro, varias presentaciones en una página, sin código de barras válido o sin precio.
-    if (!p || !item || !item.ean || item.price == null || !scope.test(p.category ?? "")) {
+    // Cada presentación (tono, tamaño) con código de barras válido y precio es un producto aparte.
+    const items = (p?.items ?? []).filter((it) => it.ean && it.price != null);
+    // Fuera de alcance: otro rubro, sin código de barras válido o sin precio.
+    if (!p || !items.length || !scope.test(p.category ?? "")) {
       const inScope = !!p && scope.test(p.category ?? "");
       await repo.saveSourceRecord(source.id, rec.key, { state: "omitida", nextCheckAt: inScope ? at(30 * DAY_MS) : null });
       out.skipped++;
       return;
     }
-    const change: ListingChange = await repo.upsertListing({
-      merchantSlug,
-      merchantName,
-      sourceId: source.id,
-      externalKey: rec.key,
-      url,
-      ean: item.ean,
-      title: p.name || item.name,
-      brand: p.brand,
-      category: p.category,
-      imageUrl: p.imageUrl,
-      price: item.price,
-      listPrice: item.listPrice,
-      inStock: item.inStock,
-    });
-    if (change === "nuevo") out.created++;
-    else if (change === "cambio") out.changed++;
-    else out.same++;
-    await repo.saveSourceRecord(source.id, rec.key, { state: "vigente", externalId: item.ean, nextCheckAt: at(recheckHours * HOUR_MS) });
+    const single = p.items.length === 1;
+    for (const item of items.slice(0, 40)) {
+      // El nombre de la presentación suele repetir el del producto; si no, se le agrega ("Labial X - Rojo 05").
+      const variant = item.name && !single && !item.name.toLowerCase().includes(p.name.toLowerCase()) ? `${p.name} - ${item.name}` : item.name || p.name;
+      const change: ListingChange = await repo.upsertListing({
+        merchantSlug,
+        merchantName,
+        sourceId: source.id,
+        // Con una sola presentación se conserva la clave de siempre; con varias, una por código de barras.
+        externalKey: single ? rec.key : `${rec.key}#${item.ean}`.slice(0, 200),
+        url,
+        ean: item.ean!,
+        title: (single ? p.name || item.name : variant).slice(0, 200),
+        brand: p.brand,
+        category: p.category,
+        imageUrl: p.imageUrl,
+        price: item.price!,
+        listPrice: item.listPrice,
+        inStock: item.inStock,
+      });
+      if (change === "nuevo") out.created++;
+      else if (change === "cambio") out.changed++;
+      else out.same++;
+    }
+    await repo.saveSourceRecord(source.id, rec.key, { state: "vigente", externalId: items[0].ean, nextCheckAt: at(recheckHours * HOUR_MS) });
   };
   // Pocas páginas a la vez: alcanza para revisar los precios cada pocos días sin cargar al comercio.
   let next = 0;

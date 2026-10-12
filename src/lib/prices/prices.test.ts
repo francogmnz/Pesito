@@ -146,6 +146,32 @@ describe("lectura de precios por tandas", () => {
     expect(await repo.priceMerchants()).toEqual([{ slug: "a", name: "a", products: 3 }, { slug: "b", name: "b", products: 1 }]);
   });
 
+  it("una página con varias presentaciones carga cada una por su código de barras", async () => {
+    const repo = createMemoryRepo();
+    const key = "Product:labial-mate";
+    const state = {
+      [key]: { productName: "Labial Mate", linkText: "labial-mate", brand: "Marca", categories: { type: "json", json: ["/Maquillaje/Labios/"] } },
+      [`${key}.items.0`]: { name: "Rojo 05", nameComplete: "Rojo 05", ean: "7790375267285" },
+      [`$${key}.items.0.sellers.0.commertialOffer`]: { Price: 9000, ListPrice: 9000, AvailableQuantity: 5 },
+      [`${key}.items.1`]: { name: "Labial Mate Nude 02", nameComplete: "Labial Mate Nude 02", ean: "7797811099516" },
+      [`$${key}.items.1.sellers.0.commertialOffer`]: { Price: 9500, ListPrice: 12000, AvailableQuantity: 0 },
+      [`${key}.items.2`]: { name: "Sin código", nameComplete: "Sin código", ean: "" },
+      [`$${key}.items.2.sellers.0.commertialOffer`]: { Price: 9000, ListPrice: 9000, AvailableQuantity: 5 },
+    };
+    const page = `<template data-type="json" data-varname="__STATE__"><script>${JSON.stringify(state)}</script></template>`;
+    const fetcher = (async (u: string) => {
+      const p = String(u).replace("https://www.tienda-a.example", "");
+      if (p === "/robots.txt") return new Response("User-agent: *\nDisallow:\n");
+      if (p === "/sitemap.xml") return new Response("<sitemapindex><sitemap><loc>https://www.tienda-a.example/sitemap/product-0.xml</loc></sitemap></sitemapindex>");
+      if (p === "/sitemap/product-0.xml") return new Response("<url><loc>https://www.tienda-a.example/labial-mate/p</loc></url>");
+      return new Response(page);
+    }) as unknown as typeof fetch;
+    expect(await crawlPrices({ repo, source: store("tienda-a", { scope: "." }), fetcher, now })).toMatchObject({ checked: 1, created: 2, skipped: 0 });
+    const all = await repo.searchProducts("labial", { sort: "menor" });
+    expect(all.map((p) => p.name)).toEqual(["Labial Mate - Rojo 05"]); // la otra presentación está sin stock
+    expect(await repo.priceStats()).toMatchObject({ products: 2, listings: 2 });
+  });
+
   it("no lee lo que robots.txt prohíbe", async () => {
     const repo = createMemoryRepo();
     const blocked = site("tienda-a", 1, "User-agent: *\nDisallow: /\n");

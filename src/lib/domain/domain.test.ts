@@ -247,3 +247,12 @@ describe("cuánto gastar para aprovechar una promo al máximo", () => {
     expect(sweetSpot({ ...base, discountKind: "monto_fijo", discountValue: 3000, capAmount: 3000 })).toBeNull();
   });
 });
+
+describe("enlace a la fuente", () => {
+  it("un cupón se puede publicar sin enlace; una promo bancaria, no", async () => {
+    const { publishProblems } = await import("./validation");
+    const base = { audience: "todos", merchantName: "Rappi", categorySlug: null, title: "30% de descuento en Rappi", summary: null, bank: null, wallet: null, paymentMethodSlugs: [], discountKind: "porcentaje", discountValue: 30, capAmount: null, capPeriod: "sin_tope", minPurchase: null, validFrom: null, validUntil: "2099-01-01", daysOfWeek: null, channel: "ambos", conditions: null, requirements: [], sourceUrl: null, externalId: null, birthday: null } as const;
+    expect(publishProblems({ ...base, kind: "cupon", requirements: [], paymentMethodSlugs: [], coupon: { redemption: "codigo", code: "RAPPI30", newCustomersOnly: false, requiresExternalSignup: false, externalPlatform: null } })).toEqual([]);
+    expect(publishProblems({ ...base, kind: "reintegro", requirements: [], paymentMethodSlugs: ["modo"], coupon: null })).toContain("Falta el enlace a la fuente oficial.");
+  });
+});
