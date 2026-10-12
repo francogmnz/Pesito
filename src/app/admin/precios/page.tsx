@@ -8,7 +8,7 @@ const n = (v: number | undefined) => (v ?? 0).toLocaleString("es-AR");
 
 export default async function PricesAdmin() {
   const repo = await getRepo();
-  const [sources, stats, health, merchants, runs] = await Promise.all([repo.listSources(), repo.priceStats(), repo.priceHealth(), repo.priceMerchants(), repo.listIngestionRuns(60)]);
+  const [sources, stats, health, merchants, runs, clicks] = await Promise.all([repo.listSources(), repo.priceStats(), repo.priceHealth(), repo.priceMerchants(), repo.listIngestionRuns(60), repo.clickSummary()]);
   const stores = sources.filter((s) => s.adapter === PRICE_ADAPTER);
   const progress = new Map(await Promise.all(stores.map(async (s) => [s.id, await repo.sourceRecordStats(s.id)] as const)));
   const priceRuns = runs.filter((r) => stores.some((s) => s.id === r.sourceId)).slice(0, 15);
@@ -82,6 +82,38 @@ export default async function PricesAdmin() {
               <tr>
                 <td colSpan={6} className="py-3 text-tinta-2">
                   Todavía no hay tiendas cargadas.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="tarjeta overflow-x-auto p-4">
+        <h2 className="font-bold">Visitas que Pesito le mandó a cada comercio</h2>
+        <p className="mb-2 text-sm text-tinta-2">Últimos 30 días. Es el número para mostrarle a una tienda cuando le propongas un acuerdo. Cada visita llega marcada como «pesito» en sus estadísticas.</p>
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="text-left text-tinta-2">
+              <th className="py-1.5 font-semibold">Comercio</th>
+              <th className="py-1.5 text-right font-semibold">Desde Comparar precios</th>
+              <th className="py-1.5 text-right font-semibold">Desde promos</th>
+              <th className="py-1.5 text-right font-semibold">Últimos 7 días</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clicks.slice(0, 25).map((c) => (
+              <tr key={c.slug} className="border-t border-linea">
+                <td className="py-2 pr-2 font-semibold">{c.name}</td>
+                <td className="numero py-2 text-right">{n(c.productClicks)}</td>
+                <td className="numero py-2 text-right">{n(c.promoClicks)}</td>
+                <td className="numero py-2 text-right">{n(c.last7Days)}</td>
+              </tr>
+            ))}
+            {clicks.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-3 text-tinta-2">
+                  Todavía no hay visitas registradas. Se cuentan desde que alguien toca «Ver en la tienda» o «Ver en la fuente oficial».
                 </td>
               </tr>
             )}

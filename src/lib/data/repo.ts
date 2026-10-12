@@ -73,6 +73,15 @@ export interface SourceRecordPatch {
 }
 
 /** Acceso a datos. Dos implementaciones: memoria (modo demo) y Supabase. */
+/** Clics hacia un comercio en los últimos 30 días. */
+export interface ClickSummary {
+  slug: string;
+  name: string;
+  productClicks: number;
+  promoClicks: number;
+  last7Days: number;
+}
+
 /** Salud de los precios cargados, para el panel. */
 export interface PriceHealth {
   /** Publicaciones sin verificar hace más de 5 días. */
@@ -192,6 +201,10 @@ export interface Repo {
   priceStats(): Promise<PriceStats>;
   priceMerchants(): Promise<PriceMerchant[]>;
   priceHealth(): Promise<PriceHealth>;
+
+  /** Si el enlace es de una publicación o de una promo publicada, cuenta el clic y devuelve la dirección final; si no, null. */
+  resolveOutbound(target: string, kind: "producto" | "promo"): Promise<string | null>;
+  clickSummary(): Promise<ClickSummary[]>;
 
   /** Borra lo que ya no sirve (historial de precios viejo, corridas viejas) para que la base no crezca sin límite. */
   cleanup(): Promise<void>;

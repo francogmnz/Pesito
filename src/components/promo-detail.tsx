@@ -1,3 +1,4 @@
+import { exitHref } from "@/lib/domain/products";
 import { formatDate, formatDays } from "@/lib/domain/dates";
 import { capLabel, REQUIREMENT_LABEL, whereLabel } from "@/lib/domain/labels";
 import { LONG_CONDITIONS, summarizeConditions } from "@/lib/domain/legal";
@@ -81,7 +82,7 @@ export function SourceAndConditions({ promo }: { promo: Promotion }) {
     <div className="grid gap-3">
       {promo.conditions && <Conditions text={promo.conditions} />}
       {promo.sourceUrl && (
-        <a href={promo.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="btn-secundario">
+        <a href={promo.isSample ? promo.sourceUrl : exitHref("promo", promo.sourceUrl)} target="_blank" rel="noopener nofollow" className="btn-secundario">
           <Icon name="external" size={18} /> Ver en la fuente oficial
         </a>
       )}

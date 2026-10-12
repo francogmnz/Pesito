@@ -13,7 +13,7 @@ import type {
   Submission,
   UserProfile,
 } from "@/lib/domain/types";
-import type { Listing, ListingInput, Product, ProductSummary } from "@/lib/domain/products";
+import { outboundUrl, type Listing, type ListingInput, type Product, type ProductSummary } from "@/lib/domain/products";
 import * as seed from "./demo-seed";
 import type { AdminStats, NewSubmission, PromotionFilter, Repo, SourceRecordPatch } from "./repo";
 import { LimitError } from "./errors";
@@ -45,6 +45,8 @@ interface Store {
   products: Map<string, Product & { search: string }>;
   listings: Map<string, Listing & { ean: string }>;
   priceHistory: { key: string; price: number; at: string }[];
+  /** Clics por "comercio|tipo". */
+  clicks: Map<string, number>;
   seq: number;
 }
 
@@ -70,6 +72,7 @@ function createStore(): Store {
     products: new Map(),
     listings: new Map(),
     priceHistory: [],
+    clicks: new Map(),
     seq: 1,
   };
   const base = {
@@ -594,6 +597,26 @@ export function createMemoryRepo(): Repo {
         .filter(([, l]) => l.ean === p.ean)
         .map(([key, l]) => clone({ merchantSlug: l.merchantSlug, merchantName: l.merchantName, url: l.url, title: l.title, price: l.price, listPrice: l.listPrice, inStock: l.inStock, lastOkAt: l.lastOkAt, priceChangedAt: l.priceChangedAt, history: st.priceHistory.filter((x) => x.key === key).map((x) => ({ price: x.price, at: x.at })) }));
       return { product: { id: p.id, ean: p.ean, brand: p.brand, name: p.name, category: p.category, imageUrl: p.imageUrl }, listings };
+    },
+    async resolveOutbound(target, kind) {
+      const st = s();
+      const slug = kind === "producto" ? [...st.listings.values()].find((l) => l.url === target)?.merchantSlug : st.promotions.find((p) => p.sourceUrl === target && p.status === "publicada")?.merchant.slug;
+      if (!slug) return null;
+      st.clicks.set(`${slug}|${kind}`, (st.clicks.get(`${slug}|${kind}`) ?? 0) + 1);
+      return outboundUrl(target, null);
+    },
+    async clickSummary() {
+      const st = s();
+      const out = new Map<string, { slug: string; name: string; productClicks: number; promoClicks: number; last7Days: number }>();
+      for (const [key, n] of st.clicks) {
+        const [slug, kind] = key.split("|");
+        const row = out.get(slug) ?? { slug, name: slug, productClicks: 0, promoClicks: 0, last7Days: 0 };
+        if (kind === "producto") row.productClicks += n;
+        else row.promoClicks += n;
+        row.last7Days += n;
+        out.set(slug, row);
+      }
+      return [...out.values()];
     },
     async priceHealth() {
       const st = s();
