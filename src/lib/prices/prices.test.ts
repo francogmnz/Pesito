@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryRepo, resetDemoStore } from "@/lib/data/memory";
-import { compareListings, isValidGtin, normalizeGtin, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
+import { compareListings, exitHref, isValidGtin, normalizeGtin, outboundUrl, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
 import type { Source } from "@/lib/domain/types";
 import { crawlPrices } from "./crawl";
 import { parseVtexProduct, parseVtexProductSitemap, parseVtexSitemapIndex } from "./vtex";
@@ -70,6 +70,25 @@ describe("comparación entre comercios", () => {
     expect(priceAge("2026-10-11T11:40:00Z", now)).toMatchObject({ stale: false, label: "verificado hace menos de una hora" });
     expect(priceAge("2026-10-10T12:00:00Z", now)).toMatchObject({ stale: false, label: "verificado hace 1 día" });
     expect(priceAge("2026-10-04T12:00:00Z", now)).toMatchObject({ stale: true, label: "verificado hace 7 días: puede estar desactualizado" });
+  });
+});
+
+describe("salida hacia el comercio", () => {
+  it("marca de dónde viene la visita y suma el afiliado sin pisar lo que el enlace ya trae", () => {
+    expect(outboundUrl("https://www.tienda.example/crema/p", null)).toBe("https://www.tienda.example/crema/p?utm_source=pesito&utm_medium=referral");
+    expect(outboundUrl("https://www.tienda.example/crema/p?sku=9", "aff=123&utm_source=socio")).toBe("https://www.tienda.example/crema/p?sku=9&aff=123&utm_source=socio&utm_medium=referral");
+    expect(outboundUrl("https://www.tienda.example/p?utm_source=otro", null)).toContain("utm_source=otro");
+    expect(exitHref("producto", "https://www.tienda.example/crema/p?a=1")).toBe("/ir?k=producto&u=https%3A%2F%2Fwww.tienda.example%2Fcrema%2Fp%3Fa%3D1");
+  });
+
+  it("solo redirige a enlaces cargados, y cuenta el clic", async () => {
+    resetDemoStore();
+    const repo = createMemoryRepo();
+    await repo.upsertListing({ merchantSlug: "tienda-a", merchantName: "Tienda A", sourceId: "s", externalKey: "crema", url: "https://www.tienda-a.example/crema/p", ean: "7790375267285", title: "Crema", brand: null, category: null, imageUrl: null, price: 100, listPrice: null, inStock: true });
+    expect(await repo.resolveOutbound("https://www.tienda-a.example/crema/p", "producto")).toBe("https://www.tienda-a.example/crema/p?utm_source=pesito&utm_medium=referral");
+    expect(await repo.resolveOutbound("https://sitio-cualquiera.example/", "producto")).toBeNull();
+    expect(await repo.resolveOutbound("https://www.tienda-a.example/crema/p", "promo")).toBeNull();
+    expect(await repo.clickSummary()).toEqual([{ slug: "tienda-a", name: "tienda-a", productClicks: 1, promoClicks: 0, last7Days: 1 }]);
   });
 });
 

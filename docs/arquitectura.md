@@ -22,7 +22,7 @@ src/
   lib/data/         Repositorio: memoria (demo) y Supabase, misma interfaz
   lib/ingest/       Automatización: adaptadores de fuentes y procesamiento
 supabase/
-  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank · 0019 fuente Belo · 0020 promos de Get The Look · 0021 limpieza y cupones sin enlace
+  migrations/       0001 base · 0002 nuevos valores · 0003 cupones/cumple/sugerencias · 0004 storage · 0005 publicación · 0006 fuentes · 0007 logos · 0008 MODO por tandas · 0009 fuente Prex · 0010 pausa PedidosYa · 0011 fuente Farmaonline · 0012 aprobación automática · 0013 MODO vigentes primero · 0014 productos y precios · 0015 Get The Look · 0016 comercios con precios · 0017 Farmaplus y Pigmento · 0018 fuente Brubank · 0019 fuente Belo · 0020 promos de Get The Look · 0021 limpieza y cupones sin enlace · 0022 promos de tiendas cada 2 h · 0023 clics a comercios
   seed.sql          Catálogos (categorías, bancos y billeteras). Sin promociones.
 ```
 
@@ -139,6 +139,10 @@ Revisión agrupa la cola por fuente y por motivo; filtrando por un motivo se pue
 ### Panel → Promos
 
 `/admin/promos` lista lo ya cargado (publicadas, pausadas, vencidas, archivadas) con buscador; `/admin/promos/[id]` edita con el mismo formulario de Revisión (`EditPayloadForm` con `save`) y cambia el estado; `/admin/promos/nueva` carga y publica a mano. Archivar no borra. El identificador de la fuente (`external_id`) no se edita: es lo que evita que el lector la vuelva a cargar.
+
+### Salidas hacia los comercios (0023)
+
+Los enlaces «Ver en la tienda» y «Ver en la fuente oficial» pasan por `/ir?k=producto|promo&u=…` (`app/ir/route.ts`). Solo redirige a enlaces cargados (una publicación o la fuente de una promo publicada), suma un clic por día, comercio y tipo en `outbound_clicks` (sin datos de la persona) y agrega `utm_source=pesito` más `merchants.affiliate_query` si hay acuerdo de afiliado. El resumen de 30 días se ve en Panel → Precios.
 
 ### Carga rápida y «Se terminan pronto»
 

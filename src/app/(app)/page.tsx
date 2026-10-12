@@ -156,6 +156,10 @@ export default async function HomePage() {
         )}
       </section>
 
+      <div className="mt-5">
+        <SupportCard compact />
+      </div>
+
       <section className="mt-7">
         <SectionTitle title="Cupones para vos" href="/cupones" linkLabel="Ver todos" />
         <div className="grid gap-3">
@@ -178,10 +182,6 @@ export default async function HomePage() {
         </span>
         <Icon name="chevronRight" className="text-tenue" />
       </Link>
-
-      <div className="mt-4">
-        <SupportCard compact />
-      </div>
 
       <FinePrint>
         Pesito reúne promociones, cupones y precios publicados por bancos, billeteras y comercios en sus sitios oficiales. Pueden cambiar o terminar sin aviso: antes de comprar, verificá las condiciones en la fuente, que está enlazada en cada promo. Los montos de reintegro y ahorro son estimaciones. Pesito no vende productos ni representa a las marcas mencionadas, que pertenecen a sus respectivos dueños.

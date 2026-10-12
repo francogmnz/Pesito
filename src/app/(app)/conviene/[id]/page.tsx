@@ -7,7 +7,7 @@ import { compareForMerchant, type CompareRow } from "@/lib/domain/calc";
 import { todayAR } from "@/lib/domain/dates";
 import { formatARS } from "@/lib/domain/money";
 import { normalizeText } from "@/lib/domain/fingerprint";
-import { compareListings, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
+import { compareListings, exitHref, priceAge, priceTrend, type Listing } from "@/lib/domain/products";
 
 export const metadata = { title: "Comparar precios" };
 
@@ -68,7 +68,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </span>
           </Link>
         )}
-        <a href={l.url} target="_blank" rel="noopener noreferrer nofollow" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-verde">
+        <a href={exitHref("producto", l.url)} target="_blank" rel="noopener nofollow" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-verde">
           <Icon name="external" size={16} /> Ver en {l.merchantName}
         </a>
       </li>

@@ -83,6 +83,22 @@ export function priceAge(lastOkAt: string, now: Date = new Date()): { hours: num
   return { hours, stale, label: stale ? `${label}: puede estar desactualizado` : label };
 }
 
+/**
+ * Enlace final hacia el comercio: el que está cargado, más de dónde viene la visita (para que la tienda la vea
+ * en sus estadísticas) y, si hay acuerdo, los parámetros de afiliado. No pisa parámetros que el enlace ya trae.
+ */
+export function outboundUrl(target: string, affiliateQuery: string | null | undefined): string {
+  const u = new URL(target);
+  const extra = new URLSearchParams(affiliateQuery ?? "");
+  if (!extra.has("utm_source")) extra.set("utm_source", "pesito");
+  if (!extra.has("utm_medium")) extra.set("utm_medium", "referral");
+  for (const [k, v] of extra) if (!u.searchParams.has(k)) u.searchParams.set(k, v);
+  return u.toString();
+}
+
+/** Enlace interno que pasa por /ir (cuenta el clic y valida el destino). */
+export const exitHref = (kind: "producto" | "promo", target: string) => `/ir?k=${kind}&u=${encodeURIComponent(target)}`;
+
 export interface PriceTrend {
   tone: "bueno" | "neutro" | "malo";
   text: string;

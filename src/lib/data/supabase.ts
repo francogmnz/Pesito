@@ -17,7 +17,7 @@ import type {
   SourceRecordState,
   Submission,
 } from "@/lib/domain/types";
-import type { Listing, Product, ProductSummary } from "@/lib/domain/products";
+import { outboundUrl, type Listing, type Product, type ProductSummary } from "@/lib/domain/products";
 import { friendlyDbError } from "./errors";
 import type { AdminStats, NewSubmission, PromotionFilter, Repo } from "./repo";
 
@@ -532,6 +532,23 @@ export function createSupabaseRepo(db: SupabaseClient): Repo {
           history: hist.filter((x) => x.merchant_product_id === r.id).map((x) => ({ price: Number(x.price), at: x.at as string })), merchantSlug: m.slug, merchantName: m.name, url: r.url, title: r.title, price: Number(r.price), listPrice: r.list_price == null ? null : Number(r.list_price), inStock: r.in_stock, lastOkAt: r.last_ok_at, priceChangedAt: r.price_changed_at };
       });
       return { product: toProduct(p as Row), listings };
+    },
+    async resolveOutbound(target, kind) {
+      // El destino tiene que estar cargado tal cual: una publicación de un comercio o la fuente de una promo publicada.
+      const found =
+        kind === "producto"
+          ? await db.from("merchant_products").select("merchant_id").eq("url", target).limit(1).maybeSingle()
+          : await db.from("promotions").select("merchant_id").eq("source_url", target).eq("status", "publicada").limit(1).maybeSingle();
+      const merchantId = (found.data as Row | null)?.merchant_id as string | undefined;
+      if (found.error || !merchantId) return null;
+      // Contador y afiliado llegan con la migración 0023: si todavía no está, el enlace funciona igual.
+      const [aff] = await Promise.all([db.from("merchants").select("affiliate_query").eq("id", merchantId).maybeSingle(), db.rpc("count_outbound_click", { p_merchant: merchantId, p_kind: kind })]);
+      return outboundUrl(target, aff.error ? null : ((aff.data as Row | null)?.affiliate_query ?? null));
+    },
+    async clickSummary() {
+      const { data, error } = await db.from("outbound_click_summary").select("slug, name, product_clicks, promo_clicks, last_7_days");
+      if (error || !data) return [];
+      return (data as Row[]).map((r) => ({ slug: r.slug, name: r.name, productClicks: r.product_clicks, promoClicks: r.promo_clicks, last7Days: r.last_7_days })).sort((a, b) => b.productClicks + b.promoClicks - (a.productClicks + a.promoClicks));
     },
     async priceHealth() {
       const ago = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
